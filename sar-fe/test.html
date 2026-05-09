@@ -1,0 +1,822 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>SAR Image Explorer - JPG Fixed</title>
+  
+  <!-- OpenSeadragon for smooth image viewing -->
+  <script src="https://cdn.jsdelivr.net/npm/openseadragon@4.1.0/build/openseadragon/openseadragon.min.js"></script>
+  
+  <style>
+    body { 
+      margin: 0; 
+      padding: 0; 
+      overflow: hidden; 
+      font: 14px 'Courier New', monospace; 
+      background: #1a1a1a;
+      color: #00ff00;
+    }
+    
+    #viewer { 
+      width: 100vw; 
+      height: 100vh; 
+      background: #000;
+    }
+    
+    .control-panel {
+      position: fixed;
+      top: 20px;
+      left: 20px;
+      background: rgba(0, 0, 0, 0.8);
+      border: 1px solid #00ff00;
+      padding: 15px;
+      border-radius: 8px;
+      backdrop-filter: blur(10px);
+      z-index: 1000;
+      font-family: 'Courier New', monospace;
+      color: #00ff00;
+      min-width: 250px;
+    }
+    
+    .status-item {
+      margin: 8px 0;
+      display: flex;
+      justify-content: space-between;
+    }
+    
+    .status-label {
+      font-weight: bold;
+      color: #00ffff;
+    }
+    
+    .toggle-btn, .file-btn {
+      background: rgba(0, 255, 0, 0.2);
+      border: 1px solid #00ff00;
+      color: #00ff00;
+      padding: 8px 16px;
+      cursor: pointer;
+      border-radius: 4px;
+      font-family: 'Courier New', monospace;
+      font-size: 12px;
+      transition: all 0.3s ease;
+      margin: 5px 0;
+    }
+    
+    .toggle-btn:hover, .file-btn:hover {
+      background: rgba(0, 255, 0, 0.4);
+      box-shadow: 0 0 10px rgba(0, 255, 0, 0.5);
+    }
+    
+    .toggle-btn.active {
+      background: rgba(0, 255, 0, 0.6);
+      color: #000;
+    }
+    
+    .file-input {
+      display: none;
+    }
+    
+    .detection-stats {
+      margin-top: 15px;
+      padding-top: 15px;
+      border-top: 1px solid #00ff00;
+    }
+    
+    .error-message {
+      color: #ff4444;
+      font-size: 12px;
+      margin-top: 10px;
+      padding: 10px;
+      background: rgba(255, 68, 68, 0.1);
+      border: 1px solid #ff4444;
+      border-radius: 4px;
+    }
+    
+    .enhancement-controls {
+      margin-top: 15px;
+      padding-top: 15px;
+      border-top: 1px solid #00ff00;
+    }
+    
+    .slider-container {
+      margin: 10px 0;
+    }
+    
+    .slider-label {
+      display: block;
+      margin-bottom: 5px;
+      font-size: 11px;
+      color: #00ffff;
+    }
+    
+    .slider {
+      width: 100%;
+      height: 20px;
+      background: rgba(0, 255, 0, 0.2);
+      border: 1px solid #00ff00;
+      border-radius: 10px;
+      outline: none;
+      -webkit-appearance: none;
+    }
+    
+    .slider::-webkit-slider-thumb {
+      appearance: none;
+      width: 20px;
+      height: 20px;
+      background: #00ff00;
+      border-radius: 50%;
+      cursor: pointer;
+    }
+    
+    .slider::-moz-range-thumb {
+      width: 20px;
+      height: 20px;
+      background: #00ff00;
+      border-radius: 50%;
+      cursor: pointer;
+      border: none;
+    }
+    
+    #imageCanvas {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div id="viewer"></div>
+  
+  <div class="control-panel">
+    <div class="status-item">
+      <span class="status-label">SYSTEM:</span>
+      <span id="systemStatus">READY</span>
+    </div>
+    
+    <div class="status-item">
+      <span class="status-label">IMAGE:</span>
+      <span id="imageStatus">NONE</span>
+    </div>
+    
+    <div class="status-item">
+      <span class="status-label">ZOOM:</span>
+      <span id="zoomLevel">1.00x</span>
+    </div>
+    
+    <div class="status-item">
+      <span class="status-label">POSITION:</span>
+      <span id="position">0, 0</span>
+    </div>
+    
+    <div class="status-item">
+      <span class="status-label">VIEW:</span>
+      <span id="viewport">No image</span>
+    </div>
+    
+    <!-- File upload section -->
+    <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #00ff00;">
+      <input type="file" id="imageInput" class="file-input" accept="image/*">
+      <button onclick="document.getElementById('imageInput').click()" class="file-btn">
+        LOAD IMAGE
+      </button>
+      
+      <input type="file" id="jsonInput" class="file-input" accept=".json">
+      <button onclick="document.getElementById('jsonInput').click()" class="file-btn">
+        LOAD DETECTIONS
+      </button>
+    </div>
+    
+    <!-- Image Enhancement Controls -->
+    <div class="enhancement-controls">
+      <div class="slider-container">
+        <label class="slider-label">BRIGHTNESS: <span id="brightnessValue">1.0</span></label>
+        <input type="range" id="brightnessSlider" class="slider" min="0.1" max="5" step="0.1" value="1.0">
+      </div>
+      
+      <div class="slider-container">
+        <label class="slider-label">CONTRAST: <span id="contrastValue">1.0</span></label>
+        <input type="range" id="contrastSlider" class="slider" min="0.1" max="5" step="0.1" value="1.0">
+      </div>
+      
+      <div class="slider-container">
+        <label class="slider-label">GAMMA: <span id="gammaValue">1.0</span></label>
+        <input type="range" id="gammaSlider" class="slider" min="0.1" max="3" step="0.1" value="1.0">
+      </div>
+      
+      <button id="resetEnhancement" class="file-btn">RESET</button>
+      <button id="autoEnhance" class="file-btn">AUTO ENHANCE</button>
+    </div>
+    
+    <!-- Detection stats -->
+    <div class="detection-stats">
+      <div class="status-item">
+        <span class="status-label">DETECTIONS:</span>
+        <span id="detectionCount">0</span>
+      </div>
+      
+      <div class="status-item">
+        <span class="status-label">VISIBLE:</span>
+        <span id="visibleCount">0</span>
+      </div>
+      
+      <div style="margin-top: 10px;">
+        <button id="toggleDetections" class="toggle-btn active">SHOW DETECTIONS</button>
+      </div>
+    </div>
+    
+    <!-- Error messages -->
+    <div id="errorContainer"></div>
+  </div>
+  
+  <!-- Hidden canvas for image processing -->
+  <canvas id="imageCanvas"></canvas>
+
+  <script>
+    // Global state
+    let viewer = null;
+    let detections = [];
+    let showDetections = true;
+    let currentImageDimensions = { width: 1, height: 1 };
+    let originalImageData = null;
+    let enhancementSettings = { brightness: 1.0, contrast: 1.0, gamma: 1.0 };
+
+    // Initialize the viewer
+    function initializeViewer() {
+      viewer = OpenSeadragon({
+        id: 'viewer',
+        prefixUrl: 'https://cdn.jsdelivr.net/npm/openseadragon@4.1.0/build/openseadragon/images/',
+        
+        // Start with a placeholder - we'll load the real image later
+        tileSources: {
+          type: 'image',
+          url: 'data:image/svg+xml;base64,' + btoa(`
+            <svg width="100" height="100" xmlns="http://www.w3.org/2000/svg">
+              <rect width="100" height="100" fill="#1a1a1a"/>
+              <text x="50" y="50" text-anchor="middle" dy=".3em" fill="#00ff00" font-family="monospace" font-size="8">
+                NO IMAGE LOADED
+              </text>
+            </svg>
+          `),
+          buildPyramid: false
+        },
+
+        // Performance optimizations for large images
+        immediateRender: true,
+        blendTime: 0,
+        alwaysBlend: false,
+        preserveImageSizeOnResize: true,
+        preserveViewport: true,
+        smoothTileEdgesMinZoom: 1.5,
+        
+        // Image rendering fixes
+        opacity: 1.0,
+        compositeOperation: 'source-over',
+        debugMode: false,
+        loadTilesWithAjax: false,
+        ajaxWithCredentials: false,
+        useCanvas: true,
+
+        // Zoom settings
+        defaultZoomLevel: 1,
+        minZoomLevel: 0.01,
+        maxZoomLevel: 50,
+        zoomPerClick: 2.0,
+        zoomPerScroll: 1.4,
+        constrainDuringPan: false,
+        visibilityRatio: 0.1,
+
+        // UI controls
+        showNavigator: true,
+        navigatorPosition: 'BOTTOM_RIGHT',
+        navigatorSizeRatio: 0.15,
+        navigatorBackground: 'rgba(0, 0, 0, 0.8)',
+        navigatorBorderColor: '#00ff00',
+        navigatorOpacity: 0.9,
+        
+        showZoomControl: true,
+        showHomeControl: true,
+        showFullPageControl: true,
+        showRotationControl: false,
+        showFlipControl: false,
+
+        // Animation settings
+        springStiffness: 8.0,
+        animationTime: 0.6,
+
+        // Mouse/touch settings
+        gestureSettingsMouse: {
+          scrollToZoom: true,
+          clickToZoom: true,
+          dblClickToZoom: true,
+          pinchToZoom: true,
+          flickEnabled: true,
+          flickMinSpeed: 120,
+          flickMomentum: 0.25
+        }
+      });
+
+      // Event handlers
+      viewer.addHandler('open', onViewerOpen);
+      viewer.addHandler('zoom', onZoomChange);
+      viewer.addHandler('pan', onPanChange);
+      viewer.addHandler('viewport-change', updateViewport);
+      viewer.addHandler('open-failed', onOpenFailed);
+    }
+
+    // Event handlers
+    function onViewerOpen() {
+      console.log('Viewer opened successfully');
+      updateViewport();
+    }
+
+    function onOpenFailed(event) {
+      console.error('Failed to open image:', event);
+      showError('Failed to load image. Check file format and try again.');
+    }
+
+    function onZoomChange(event) {
+      const zoom = event.zoom || viewer.viewport.getZoom();
+      document.getElementById('zoomLevel').textContent = 
+        zoom < 0.1 ? zoom.toFixed(3) + 'x' : zoom.toFixed(2) + 'x';
+      
+      if (showDetections) {
+        updateDetectionVisibility();
+      }
+    }
+
+    function onPanChange() {
+      updateViewport();
+      if (showDetections) {
+        updateDetectionVisibility();
+      }
+    }
+
+    function updateViewport() {
+      if (!viewer || !viewer.viewport) return;
+
+      const bounds = viewer.viewport.getBounds();
+      const imageWidth = currentImageDimensions.width;
+      const imageHeight = currentImageDimensions.height;
+      
+      const x1 = Math.max(0, Math.floor(bounds.x * imageWidth));
+      const y1 = Math.max(0, Math.floor(bounds.y * imageHeight));
+      const x2 = Math.min(imageWidth, Math.floor((bounds.x + bounds.width) * imageWidth));
+      const y2 = Math.min(imageHeight, Math.floor((bounds.y + bounds.height) * imageHeight));
+      
+      document.getElementById('position').textContent = `${x1}, ${y1}`;
+      document.getElementById('viewport').textContent = `${x2-x1} × ${y2-y1}`;
+    }
+
+    // Image loading with enhancement support
+    function loadImageFile(file) {
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        const imageUrl = e.target.result;
+        
+        // Create an Image object to get dimensions and pixel data
+        const img = new Image();
+        img.onload = function() {
+          currentImageDimensions.width = img.width;
+          currentImageDimensions.height = img.height;
+          
+          // Store original image data for enhancement
+          const canvas = document.getElementById('imageCanvas');
+          const ctx = canvas.getContext('2d');
+          canvas.width = img.width;
+          canvas.height = img.height;
+          ctx.drawImage(img, 0, 0);
+          originalImageData = ctx.getImageData(0, 0, img.width, img.height);
+          
+          console.log(`Image loaded: ${img.width}x${img.height}`);
+          
+          // Open the original image first
+          viewer.open({
+            type: 'image',
+            url: imageUrl,
+            buildPyramid: false,
+            crossOriginPolicy: false,
+            opacity: 1.0,
+            success: function() {
+              console.log('Image opened successfully');
+              viewer.viewport.goHome(false);
+              setTimeout(() => {
+                viewer.forceRedraw();
+              }, 100);
+            }
+          });
+          
+          document.getElementById('imageStatus').textContent = `${img.width}×${img.height}`;
+          clearError();
+          
+          // Update detections if they're loaded
+          if (detections.length > 0) {
+            updateDetectionVisibility();
+          }
+        };
+        
+        img.onerror = function() {
+          showError('Failed to load image. Please check the file format.');
+        };
+        
+        img.src = imageUrl;
+      };
+      
+      reader.onerror = function() {
+        showError('Failed to read image file.');
+      };
+      
+      reader.readAsDataURL(file);
+    }
+
+    // Detection management
+    function loadDetectionFile(file) {
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        try {
+          const data = JSON.parse(e.target.result);
+          detections = Array.isArray(data.detections) ? data.detections : 
+                     Array.isArray(data) ? data : [];
+          
+          document.getElementById('detectionCount').textContent = detections.length;
+          console.log(`Loaded ${detections.length} detections`);
+          clearError();
+          
+          if (showDetections && viewer) {
+            updateDetectionVisibility();
+          }
+          
+        } catch (error) {
+          console.error('Failed to parse detection JSON:', error);
+          showError(`Failed to parse detection file: ${error.message}`);
+        }
+      };
+      
+      reader.onerror = function() {
+        showError('Failed to read detection file.');
+      };
+      
+      reader.readAsText(file);
+    }
+
+    function updateDetectionVisibility() {
+      if (!viewer || !viewer.viewport || detections.length === 0) {
+        document.getElementById('visibleCount').textContent = '0';
+        return;
+      }
+
+      // Clear existing overlays
+      viewer.clearOverlays();
+      let visibleCount = 0;
+
+      if (!showDetections) {
+        document.getElementById('visibleCount').textContent = '0';
+        return;
+      }
+
+      const bounds = viewer.viewport.getBounds();
+      const imageWidth = currentImageDimensions.width;
+      const imageHeight = currentImageDimensions.height;
+      
+      const viewX1 = bounds.x * imageWidth;
+      const viewY1 = bounds.y * imageHeight;
+      const viewX2 = (bounds.x + bounds.width) * imageWidth;
+      const viewY2 = (bounds.y + bounds.height) * imageHeight;
+
+      // Add visible detections
+      detections.forEach((detection, index) => {
+        const bbox = detection.bbox || detection.bounding_box || detection.box;
+        if (!bbox || bbox.length < 4) return;
+        
+        const [xmin, ymin, xmax, ymax] = bbox;
+        
+        // Check if detection is visible in current viewport
+        if (xmin < viewX2 && xmax > viewX1 && ymin < viewY2 && ymax > viewY1) {
+          addDetectionOverlay(detection, index);
+          visibleCount++;
+        }
+      });
+
+      document.getElementById('visibleCount').textContent = visibleCount;
+    }
+
+    function addDetectionOverlay(detection, index) {
+      const bbox = detection.bbox || detection.bounding_box || detection.box;
+      const [xmin, ymin, xmax, ymax] = bbox;
+      const width = xmax - xmin;
+      const height = ymax - ymin;
+
+      // Create overlay element
+      const overlay = document.createElement('div');
+      overlay.style.cssText = `
+        border: 3px solid #00ff00;
+        background: rgba(0, 255, 0, 0.15);
+        box-shadow: 0 0 15px rgba(0, 255, 0, 0.5);
+        pointer-events: none;
+        box-sizing: border-box;
+        position: relative;
+      `;
+
+      // Add label
+      const label = document.createElement('div');
+      label.style.cssText = `
+        position: absolute;
+        top: -30px;
+        left: 0;
+        background: rgba(0, 255, 0, 0.9);
+        color: #000;
+        padding: 4px 8px;
+        font-family: 'Courier New', monospace;
+        font-size: 11px;
+        font-weight: bold;
+        white-space: nowrap;
+        border-radius: 3px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+      `;
+      
+      const confidence = detection.confidence ? (detection.confidence * 100).toFixed(1) : '100.0';
+      const className = detection.class_name || detection.class || detection.label || 'OBJECT';
+      label.textContent = `${className} ${index + 1} (${confidence}%)`;
+      overlay.appendChild(label);
+
+      // Add overlay to viewer using normalized coordinates
+      const rect = new OpenSeadragon.Rect(
+        xmin / currentImageDimensions.width,
+        ymin / currentImageDimensions.height,
+        width / currentImageDimensions.width,
+        height / currentImageDimensions.height
+      );
+
+      viewer.addOverlay({
+        element: overlay,
+        location: rect
+      });
+    }
+
+    // Toggle detections
+    function toggleDetections() {
+      showDetections = !showDetections;
+      const button = document.getElementById('toggleDetections');
+      
+      if (showDetections) {
+        button.textContent = 'HIDE DETECTIONS';
+        button.classList.add('active');
+        updateDetectionVisibility();
+      } else {
+        button.textContent = 'SHOW DETECTIONS';
+        button.classList.remove('active');
+        viewer.clearOverlays();
+        document.getElementById('visibleCount').textContent = '0';
+      }
+    }
+
+    // Error handling
+    function showError(message) {
+      const errorContainer = document.getElementById('errorContainer');
+      errorContainer.innerHTML = `<div class="error-message">${message}</div>`;
+    }
+
+    function clearError() {
+      document.getElementById('errorContainer').innerHTML = '';
+    }
+
+    // Image enhancement functions
+    function enhanceImage(imageData, brightness = 1.0, contrast = 1.0, gamma = 1.0) {
+      const canvas = document.getElementById('imageCanvas');
+      const ctx = canvas.getContext('2d');
+      
+      // Set canvas size to match image
+      canvas.width = imageData.width;
+      canvas.height = imageData.height;
+      
+      // Draw original image
+      ctx.putImageData(imageData, 0, 0);
+      
+      // Apply enhancements
+      const data = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const pixels = data.data;
+      
+      for (let i = 0; i < pixels.length; i += 4) {
+        // Get RGB values
+        let r = pixels[i];
+        let g = pixels[i + 1];
+        let b = pixels[i + 2];
+        
+        // Apply brightness
+        r *= brightness;
+        g *= brightness;
+        b *= brightness;
+        
+        // Apply contrast
+        r = ((r / 255 - 0.5) * contrast + 0.5) * 255;
+        g = ((g / 255 - 0.5) * contrast + 0.5) * 255;
+        b = ((b / 255 - 0.5) * contrast + 0.5) * 255;
+        
+        // Apply gamma correction
+        r = Math.pow(r / 255, 1 / gamma) * 255;
+        g = Math.pow(g / 255, 1 / gamma) * 255;
+        b = Math.pow(b / 255, 1 / gamma) * 255;
+        
+        // Clamp values
+        pixels[i] = Math.max(0, Math.min(255, r));
+        pixels[i + 1] = Math.max(0, Math.min(255, g));
+        pixels[i + 2] = Math.max(0, Math.min(255, b));
+      }
+      
+      ctx.putImageData(data, 0, 0);
+      return canvas.toDataURL('image/jpeg', 0.9);
+    }
+    
+    function applyEnhancements() {
+      if (!originalImageData) return;
+      
+      const enhancedUrl = enhanceImage(
+        originalImageData, 
+        enhancementSettings.brightness,
+        enhancementSettings.contrast,
+        enhancementSettings.gamma
+      );
+      
+      viewer.open({
+        type: 'image',
+        url: enhancedUrl,
+        buildPyramid: false,
+        crossOriginPolicy: false,
+        opacity: 1.0
+      });
+    }
+    
+    function autoEnhance() {
+      if (!originalImageData) return;
+      
+      // Auto-enhance settings for SAR images
+      enhancementSettings.brightness = 2.5;
+      enhancementSettings.contrast = 3.0;
+      enhancementSettings.gamma = 0.7;
+      
+      // Update sliders
+      document.getElementById('brightnessSlider').value = enhancementSettings.brightness;
+      document.getElementById('contrastSlider').value = enhancementSettings.contrast;
+      document.getElementById('gammaSlider').value = enhancementSettings.gamma;
+      
+      // Update displays
+      document.getElementById('brightnessValue').textContent = enhancementSettings.brightness.toFixed(1);
+      document.getElementById('contrastValue').textContent = enhancementSettings.contrast.toFixed(1);
+      document.getElementById('gammaValue').textContent = enhancementSettings.gamma.toFixed(1);
+      
+      applyEnhancements();
+    }
+    
+    function resetEnhancement() {
+      enhancementSettings.brightness = 1.0;
+      enhancementSettings.contrast = 1.0;
+      enhancementSettings.gamma = 1.0;
+      
+      // Update sliders
+      document.getElementById('brightnessSlider').value = 1.0;
+      document.getElementById('contrastSlider').value = 1.0;
+      document.getElementById('gammaSlider').value = 1.0;
+      
+      // Update displays
+      document.getElementById('brightnessValue').textContent = '1.0';
+      document.getElementById('contrastValue').textContent = '1.0';
+      document.getElementById('gammaValue').textContent = '1.0';
+      
+      if (originalImageData) {
+        applyEnhancements();
+      }
+    }
+    async function tryAutoLoad() {
+      // First check if we can load the image via URL
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      
+      img.onload = function() {
+        console.log('Auto-loading image via URL...');
+        currentImageDimensions.width = img.width;
+        currentImageDimensions.height = img.height;
+        
+        viewer.open({
+          type: 'image',
+          url: './public/01.jpg',
+          buildPyramid: false,
+          crossOriginPolicy: 'Anonymous',
+          opacity: 1.0,
+          success: function() {
+            document.getElementById('imageStatus').textContent = `${img.width}×${img.height}`;
+            console.log('Image loaded successfully via URL');
+            clearError();
+          },
+          error: function() {
+            showError('Image loaded but failed to display. Try file upload.');
+          }
+        });
+      };
+      
+      img.onerror = function() {
+        console.log('URL load failed, use file upload instead');
+        showError('Could not load image from ./public/01.jpg - use LOAD IMAGE button');
+      };
+      
+      img.src = './public/01.jpg';
+      
+      try {
+        // Try to load detections
+        const response = await fetch('./detections.json');
+        if (response.ok) {
+          const data = await response.json();
+          detections = Array.isArray(data.detections) ? data.detections : 
+                     Array.isArray(data) ? data : [];
+          document.getElementById('detectionCount').textContent = detections.length;
+          console.log(`Auto-loaded ${detections.length} detections`);
+        }
+      } catch (error) {
+        console.log('Auto-load detections failed, use file upload instead');
+      }
+    }
+
+    function loadImageFromBlob(blob) {
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        const imageUrl = e.target.result;
+        
+        const img = new Image();
+        img.onload = function() {
+          currentImageDimensions.width = img.width;
+          currentImageDimensions.height = img.height;
+          
+          console.log(`Image loaded: ${img.width}x${img.height}`);
+          
+          viewer.open({
+            type: 'image',
+            url: imageUrl,
+            buildPyramid: false,
+            crossOriginPolicy: false
+          });
+          
+          document.getElementById('imageStatus').textContent = `${img.width}×${img.height}`;
+          clearError();
+          
+          if (detections.length > 0) {
+            updateDetectionVisibility();
+          }
+        };
+        
+        img.onerror = function() {
+          showError('Failed to load image. Please check the file format.');
+        };
+        
+        img.src = imageUrl;
+      };
+      
+      reader.readAsDataURL(blob);
+    }
+
+    // Initialize everything when page loads
+    window.addEventListener('load', function() {
+      console.log('Initializing SAR Image Explorer...');
+      
+      // Setup toggle button
+      document.getElementById('toggleDetections').addEventListener('click', toggleDetections);
+      
+      // Setup file inputs
+      document.getElementById('imageInput').addEventListener('change', function(e) {
+        if (e.target.files[0]) {
+          loadImageFile(e.target.files[0]);
+        }
+      });
+      
+      document.getElementById('jsonInput').addEventListener('change', function(e) {
+        if (e.target.files[0]) {
+          loadDetectionFile(e.target.files[0]);
+        }
+      });
+      
+      // Setup enhancement controls
+      document.getElementById('brightnessSlider').addEventListener('input', function(e) {
+        enhancementSettings.brightness = parseFloat(e.target.value);
+        document.getElementById('brightnessValue').textContent = enhancementSettings.brightness.toFixed(1);
+        applyEnhancements();
+      });
+      
+      document.getElementById('contrastSlider').addEventListener('input', function(e) {
+        enhancementSettings.contrast = parseFloat(e.target.value);
+        document.getElementById('contrastValue').textContent = enhancementSettings.contrast.toFixed(1);
+        applyEnhancements();
+      });
+      
+      document.getElementById('gammaSlider').addEventListener('input', function(e) {
+        enhancementSettings.gamma = parseFloat(e.target.value);
+        document.getElementById('gammaValue').textContent = enhancementSettings.gamma.toFixed(1);
+        applyEnhancements();
+      });
+      
+      document.getElementById('resetEnhancement').addEventListener('click', resetEnhancement);
+      document.getElementById('autoEnhance').addEventListener('click', autoEnhance);
+      
+      // Initialize viewer
+      initializeViewer();
+      
+      // Try to auto-load files
+      tryAutoLoad();
+    });
+  </script>
+</body>
+</html>
