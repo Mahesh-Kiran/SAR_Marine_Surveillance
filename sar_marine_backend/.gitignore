@@ -1,0 +1,85 @@
+# ======================
+# Python
+# ======================
+__pycache__/
+*.py[cod]
+*.so
+*.egg
+*.egg-info/
+*.pyd
+*.pyo
+*.pkl
+*.h5
+*.pb
+*.pt
+*.pth
+*.ckpt
+*.onnx
+*.safetensors
+model_server/models/*.json
+model_server/models/*.zip
+# Virtual environments
+venv/
+env/
+.venv/
+
+# PyInstaller
+*.spec
+dist/
+build/
+
+# ======================
+# Node.js
+# ======================
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# Dependency lock files (optional)
+package-lock.json
+yarn.lock
+
+# Build output
+build/
+dist/
+
+# ======================
+# Shared folders (local files & tiles)
+# ======================
+shared/uploads/
+shared/outputs/
+shared/tiles/
+
+# ======================
+# Environment files
+# ======================
+.env
+.env.*        # .env.development, .env.local, etc.
+
+# ======================
+# Editor / OS settings
+# ======================
+.vscode/
+.idea/
+.DS_Store
+*.swp
+
+# ======================
+# Logs
+# ======================
+*.log
+*.out
+*.err
+
+# ======================
+# Jupyter / notebooks
+# ======================
+.ipynb_checkpoints/
+
+# ======================
+# Docker / PID files (if using)
+# ======================
+*.pid
+docker-compose.override.yml
