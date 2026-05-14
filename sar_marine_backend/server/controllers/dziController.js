@@ -32,7 +32,11 @@ exports.generateDZI = async (req, res) => {
     // 🔁 Call Python backend with type and imageId
     const response = await axios.post(`http://localhost:8000/api/generate_dzi/${type}/${imageId}`);
 
-    return res.status(response.status).json(response.data);
+    const pyData = response.data;
+    return res.status(response.status).json({
+      ...pyData,
+      dziUrl: pyData.dzi_url || pyData.dziUrl || `/tiles/${type}/${imageId}.dzi`
+    });
 
   } catch (err) {
     console.error('DZI generation error:', err.message);

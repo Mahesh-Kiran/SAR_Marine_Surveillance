@@ -18,9 +18,9 @@ import ValidatorPage from './components/Validators';
 
 // Main Operation Components
 import ShipViewer from './components/ShipViewer';
-import AnnotationViewer from './components/ShipAnnotation';
+import ShipAnnotationPage from './components/ShipAnnotation';
 import AdvancedOilSpillViewer from './components/Oilspill';
-import OilSpillAnnotationViewer from './components/OilSpillAnnotation';
+import OilSpillAnnotationPage from './components/OilSpillAnnotation';
 
 function AppContent() {
   const { currentUser, loading } = useAuth();
@@ -134,7 +134,7 @@ function AppContent() {
             path="/ship-annotation"
             element={
               isAuthenticated ? (
-                <AnnotationViewer />
+                <ShipAnnotationPage />
               ) : (
                 <Navigate to="/" replace />
               )
@@ -156,7 +156,7 @@ function AppContent() {
             path="/oil-annotation"
             element={
               isAuthenticated ? (
-                <OilSpillAnnotationViewer />
+                <OilSpillAnnotationPage />
               ) : (
                 <Navigate to="/" replace />
               )

@@ -9,12 +9,34 @@ const path = require('path');
 const mongoose = require('mongoose');
 const authRoutes = require('./routes/authRoutes');
 
-mongoose.connect('mongodb://127.0.0.1:27017/sardb').then(()=>console.log('Conntected to db')).catch((e)=>console.error(e))
+const MONGO_URI = process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/sardb';
+mongoose.connect(MONGO_URI).then(async () => {
+  console.log(`Connected to db (${MONGO_URI})`);
+  try {
+    const db = mongoose.connection.db;
+    const jobs = await db.collection('jobs').countDocuments();
+    const detections = await db.collection('detections').countDocuments();
+    const users = await db.collection('users').countDocuments();
+    console.log(`  📊 DB Stats: ${jobs} jobs | ${detections} detections | ${users} users`);
+
+    const recentJobs = await db.collection('jobs').find().sort({ createdAt: -1 }).limit(5).toArray();
+    if (recentJobs.length > 0) {
+      console.log('  📋 Recent Jobs:');
+      recentJobs.forEach(j => {
+        const status = j.status === 'completed' ? '✅' : j.status === 'failed' ? '❌' : '⏳';
+        console.log(`     ${status} [${j.type}] ${j.imageId} → ${j.status} (${new Date(j.createdAt).toLocaleString()})`);
+      });
+    }
+  } catch (e) {
+    console.warn('  Could not fetch DB stats:', e.message);
+  }
+}).catch((e) => console.error(e))
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const CORS_ORIGIN = process.env.CORS_ORIGIN || 'http://localhost:5173';
 app.use(cors({
-  origin: 'http://localhost:5173',
+  origin: CORS_ORIGIN,
   credentials: true
 }));
 app.use(cookieParser());

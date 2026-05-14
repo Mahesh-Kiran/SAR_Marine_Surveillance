@@ -2,468 +2,6 @@ import React, { useEffect, useRef, useState } from "react";
 import OpenSeadragon from "openseadragon";
 import { createOSDAnnotator } from '@annotorious/openseadragon';
 import '@annotorious/openseadragon/annotorious-openseadragon.css';
-
-const AnnotationViewer = ({
-  dziUrl = "/output_dzi.dzi",
-  onSaveAnnotations,
-  existingDetections = []
-}) => {
-  const viewerRef = useRef(null);
-  const osdViewer = useRef(null);
-  const annotatorRef = useRef(null);
-  const [isDrawingMode, setIsDrawingMode] = useState(false);
-  const [currentTool, setCurrentTool] = useState('rectangle');
-  const [annotationCount, setAnnotationCount] = useState(0);
-  const [savedAnnotations, setSavedAnnotations] = useState([]);
-  const [isSaving, setIsSaving] = useState(false);
-  const [imageDimensions, setImageDimensions] = useState(null);
-
-  useEffect(() => {
-    if (osdViewer.current && osdViewer.current.isOpen()) {
-      console.log('State changed, redrawing overlays...');
-      osdViewer.current.clearOverlays();
-      addSavedAnnotationOverlays();
-    }
-  }, [savedAnnotations]);
-
-  useEffect(() => {
-    initializeViewer();
-    return () => {
-      cleanupViewer();
-    };
-  }, []);
-
-  const initializeViewer = () => {
-    if (osdViewer.current) return;
-
-    osdViewer.current = OpenSeadragon({
-      element: viewerRef.current,
-      id: "osd-annotation-viewer",
-      prefixUrl: "https://cdn.jsdelivr.net/npm/openseadragon@4.1/build/openseadragon/images/",
-      tileSources: dziUrl,
-      showNavigator: true,
-      showNavigationControl: true,
-      navigationControlAnchor: OpenSeadragon.ControlAnchor.TOP_LEFT,
-      visibilityRatio: 1,
-      gestureSettingsMouse: {
-        clickToZoom: false,
-        dblClickToZoom: true,
-        dragToPan: true,
-        scrollToZoom: true,
-        pinchToZoom: true
-      },
-      gestureSettingsTouch: {
-        clickToZoom: false,
-        dblClickToZoom: true,
-        dragToPan: true,
-        scrollToZoom: true,
-        pinchToZoom: true
-      }
-    });
-
-    osdViewer.current.addHandler("open", () => {
-      const tiledImage = osdViewer.current.world.getItemAt(0);
-      const dimensions = tiledImage.getContentSize();
-      setImageDimensions({ width: dimensions.x, height: dimensions.y });
-      console.log('Image dimensions:', dimensions.x, 'x', dimensions.y);
-
-      initializeAnnotations();
-      addSavedAnnotationOverlays();
-    });
-  };
-
-  const initializeAnnotations = () => {
-    annotatorRef.current = createOSDAnnotator(osdViewer.current, {
-      drawingEnabled: false,
-      drawingMode: 'drag',
-      autoSave: false,
-      style: {
-        stroke: '#00ff00',
-        strokeWidth: 1,
-        fill: 'rgba(0, 255, 0, 0.15)'
-      }
-    });
-
-    console.log("✓ Annotorious initialized");
-    annotatorRef.current.setDrawingTool('rectangle');
-
-    const updateCount = () => {
-      const annotations = annotatorRef.current.getAnnotations();
-      setAnnotationCount(annotations.length);
-    };
-
-    annotatorRef.current.on('createAnnotation', updateCount);
-    annotatorRef.current.on('deleteAnnotation', updateCount);
-  };
-
-  const addSavedAnnotationOverlays = () => {
-    if (!osdViewer.current || savedAnnotations.length === 0) return;
-
-    savedAnnotations.forEach((annotation, idx) => {
-      const elt = document.createElement("div");
-      elt.className = "saved-annotation-box";
-      elt.style.border = "1px solid lime";
-      elt.style.background = "rgba(0, 255, 0, 0.15)";
-      elt.style.pointerEvents = "none";
-      elt.style.boxSizing = "border-box";
-      elt.title = `Manual Annotation: ${annotation.label} (${(annotation.score * 100).toFixed(1)}%)`;
-
-      const rect = osdViewer.current.viewport.imageToViewportRectangle(
-        new OpenSeadragon.Rect(annotation.x, annotation.y, annotation.w, annotation.h)
-      );
-
-      osdViewer.current.addOverlay({
-        element: elt,
-        location: rect,
-        placement: OpenSeadragon.Placement.TOP_LEFT
-      });
-    });
-  };
-
-  const toggleDrawingMode = () => {
-    if (annotatorRef.current && osdViewer.current) {
-      const newState = !isDrawingMode;
-      annotatorRef.current.setDrawingEnabled(newState);
-      osdViewer.current.setMouseNavEnabled(!newState);
-      setIsDrawingMode(newState);
-      console.log(`Drawing mode: ${newState ? 'ON' : 'OFF'}`);
-    }
-  };
-
-  const handleToolChange = (tool) => {
-    if (annotatorRef.current) {
-      annotatorRef.current.setDrawingTool(tool);
-      setCurrentTool(tool);
-      console.log(`Switched to ${tool} tool`);
-    }
-  };
-
-  const clearAllAnnotations = () => {
-    if (annotatorRef.current && window.confirm('Clear all annotations?')) {
-      annotatorRef.current.clearAnnotations();
-      console.log('All annotations cleared');
-    }
-  };
-
-  const saveAnnotations = async () => {
-    if (!annotatorRef.current) return;
-    const annotations = annotatorRef.current.getAnnotations();
-    if (annotations.length === 0) {
-      alert('No annotations to save!');
-      return;
-    }
-
-    setIsSaving(true);
-
-    try {
-      const newDetections = annotations.map((annotation) => {
-        const selector = annotation.target.selector;
-        if (selector.type === 'RECTANGLE' && selector.geometry) {
-          const { x, y, w, h } = selector.geometry;
-          return { x, y, w, h, label: "ship", score: 1.0 };
-        }
-        return null;
-      }).filter(Boolean);
-
-      setSavedAnnotations(prev => [...prev, ...newDetections]);
-
-      if (onSaveAnnotations) {
-        await onSaveAnnotations(newDetections);
-      }
-
-      annotatorRef.current.clearAnnotations();
-      console.log(`✅ ${newDetections.length} annotations saved`);
-      alert(`Successfully saved ${newDetections.length} annotations!`);
-
-    } catch (error) {
-      console.error('Error during save:', error);
-      alert(`Error: ${error.message}`);
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  // Download ONLY manual annotations as JSON
-  const downloadAnnotationsJSON = () => {
-    if (!imageDimensions) {
-      alert('Please wait for image to load before downloading');
-      return;
-    }
-
-    // Only manual annotations
-    const manualAnnotations = savedAnnotations.map(d => ({
-      ...d,
-      type: 'manual_annotation'
-    }));
-
-    const exportData = {
-      imageDimensions: imageDimensions, // Use actual dimensions from DZI
-      timestamp: new Date().toISOString(),
-      annotations: manualAnnotations,
-      metadata: {
-        totalAnnotations: manualAnnotations.length,
-        aiDetections: 0,
-        manualAnnotations: manualAnnotations.length
-      }
-    };
-
-    const jsonStr = JSON.stringify(exportData, null, 2);
-    const blob = new Blob([jsonStr], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `ship_annotations_${Date.now()}.json`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-
-    console.log('✅ Manual annotations exported as JSON');
-    console.log('Image dimensions:', imageDimensions);
-  };
-
-  const debugAnnotationStructure = () => {
-    if (!annotatorRef.current) return;
-
-    const annotations = annotatorRef.current.getAnnotations();
-    console.log('=== DETAILED ANNOTATION DEBUG ===');
-    console.log('Total annotations:', annotations.length);
-
-    annotations.forEach((annotation, index) => {
-      console.log(`\n--- Annotation ${index} ---`);
-      console.log('Full structure:', JSON.stringify(annotation, null, 2));
-
-      const selector = annotation.target.selector;
-      if (selector.geometry) {
-        console.log('Coordinates:', {
-          x: selector.geometry.x,
-          y: selector.geometry.y,
-          w: selector.geometry.w,
-          h: selector.geometry.h
-        });
-      }
-    });
-
-    if (osdViewer.current) {
-      const tiledImage = osdViewer.current.world.getItemAt(0);
-      console.log('\n📐 Image dimensions:', tiledImage.getContentSize());
-    }
-
-    console.log('=== END DEBUG ===');
-  };
-
-  const cleanupViewer = () => {
-    if (annotatorRef.current) {
-      annotatorRef.current.destroy();
-      annotatorRef.current = null;
-    }
-    if (osdViewer.current) {
-      osdViewer.current.destroy();
-      osdViewer.current = null;
-    }
-  };
-
-  return (
-    <div className="w-full">
-      <div className="mb-4 bg-gray-900/80 border-2 border-gray-600/40 p-4 rounded-lg shadow-lg">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
-              <span className="text-gray-300 font-mono text-sm font-bold">
-                Active Annotations: {annotationCount}
-              </span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 bg-lime-500 rounded-full animate-pulse"></div>
-              <span className="text-gray-300 font-mono text-sm font-bold">
-                Saved: {savedAnnotations.length}
-              </span>
-            </div>
-            {imageDimensions && (
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
-                <span className="text-gray-300 font-mono text-xs">
-                  {imageDimensions.width} × {imageDimensions.height}
-                </span>
-              </div>
-            )}
-          </div>
-
-          <div className="flex items-center gap-2">
-            <button
-              onClick={toggleDrawingMode}
-              className={`px-3 py-1 rounded font-mono text-xs font-bold transition-all ${isDrawingMode
-                  ? 'bg-orange-600 border-2 border-orange-400 text-white shadow-lg animate-pulse'
-                  : 'bg-green-600 border-2 border-green-400 text-white shadow-md'
-                }`}
-              title={isDrawingMode ? 'Click to enable Pan/Zoom' : 'Click to enable Drawing'}
-            >
-              {isDrawingMode ? '✏ DRAW MODE' : '🔍 PAN/ZOOM MODE'}
-            </button>
-
-            {isDrawingMode && (
-              <div className="flex items-center gap-1 bg-gray-900/90 px-2 py-1 rounded border-2 border-orange-600/60 shadow-lg">
-                <button
-                  onClick={() => handleToolChange('rectangle')}
-                  title="Rectangle Tool"
-                  className={`p-2 rounded transition-all ${currentTool === 'rectangle'
-                      ? 'bg-blue-600 text-white shadow-md scale-110'
-                      : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-                    }`}
-                >
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
-                  </svg>
-                </button>
-
-                <div className="w-px h-6 bg-gray-600 mx-1"></div>
-                <button
-                  onClick={clearAllAnnotations}
-                  title="Clear All Annotations"
-                  className="p-2 rounded bg-red-700 text-white hover:bg-red-600 transition-all"
-                >
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <line x1="18" y1="6" x2="6" y2="18" />
-                    <line x1="6" y1="6" x2="18" y2="18" />
-                  </svg>
-                </button>
-
-                <div className="w-px h-6 bg-gray-600 mx-1"></div>
-                <button
-                  onClick={saveAnnotations}
-                  disabled={isSaving || annotationCount === 0}
-                  title="Save Annotations"
-                  className={`p-2 rounded transition-all font-bold ${isSaving || annotationCount === 0
-                      ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
-                      : 'bg-lime-600 text-white hover:bg-lime-500 shadow-md'
-                    }`}
-                >
-                  {isSaving ? (
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="animate-spin">
-                      <circle cx="12" cy="12" r="10" />
-                      <path d="m9 12 2 2 4-4" />
-                    </svg>
-                  ) : (
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
-                      <polyline points="17,21 17,13 7,13 7,21" />
-                      <polyline points="7,3 7,8 15,8" />
-                    </svg>
-                  )}
-                </button>
-
-                <button
-                  onClick={debugAnnotationStructure}
-                  className="p-2 rounded bg-yellow-600 text-white hover:bg-yellow-500"
-                  title="Debug Annotation Structure"
-                >
-                  🐛
-                </button>
-              </div>
-            )}
-
-            {/* Download JSON button - Only manual annotations */}
-            {!isDrawingMode && savedAnnotations.length > 0 && (
-              <div className="flex items-center gap-2 bg-gray-900/90 px-2 py-1 rounded border-2 border-blue-600/60 shadow-lg">
-                <button
-                  onClick={downloadAnnotationsJSON}
-                  title="Download Manual Annotations as JSON"
-                  className="px-3 py-2 rounded font-mono text-xs font-bold bg-purple-600 text-white hover:bg-purple-500 transition-all shadow-md"
-                >
-                  📄 Download JSON
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      <div style={{ position: "relative" }}>
-        <h3 className="text-sm font-bold mb-2 font-mono uppercase tracking-wider">
-          ✏ SAR Image Annotation Workspace
-        </h3>
-        <div
-          ref={viewerRef}
-          style={{ width: "100%", height: "90vh", background: "black", borderRadius: "8px" }}
-        />
-
-        {savedAnnotations.length > 0 && (
-          <div className="absolute top-4 right-4 bg-black/80 border border-gray-600 p-2 rounded text-xs font-mono">
-            <div className="flex items-center gap-2 mb-1">
-              <div className="w-3 h-2 bg-green-500 border border-green-600"></div>
-              <span className="text-white">Active Annotations</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-2 bg-lime-500 border border-lime-600"></div>
-              <span className="text-white">Saved Annotations</span>
-            </div>
-          </div>
-        )}
-
-        {isDrawingMode && (
-          <div className="absolute bottom-4 left-4 px-4 py-2 rounded-lg border bg-orange-900/90 border-orange-600 text-white font-mono text-xs">
-            <div className="font-bold mb-1">
-              ✏ {currentTool === 'rectangle' ? 'Rectangle Mode' : 'Polygon Mode'}
-            </div>
-            <div className="text-gray-200">
-              Click and drag to draw a rectangle
-            </div>
-            <div className="text-yellow-300 mt-1 text-xs">
-              💾 Click SAVE to persist annotations
-            </div>
-          </div>
-        )}
-      </div>
-
-      <style>{`
-        .saved-annotation-box {
-          pointer-events: none;
-          box-sizing: border-box;
-          position: absolute;
-        }
-
-        svg.a9s-annotationlayer .a9s-selection .a9s-outer,
-        svg.a9s-annotationlayer .a9s-annotation .a9s-outer {
-          stroke: #00ff00;
-          stroke-width: 1;
-          fill: rgba(0, 255, 0, 0.1);
-        }
-
-        svg.a9s-annotationlayer .a9s-selection .a9s-inner,
-        svg.a9s-annotationlayer .a9s-annotation .a9s-inner {
-          stroke: #00ff00;
-          stroke-width: 1;
-          stroke-dasharray: 5;
-          fill: rgba(0, 255, 0, 0.15);
-        }
-
-        svg.a9s-annotationlayer .a9s-annotation.editable:hover .a9s-inner {
-          fill: rgba(0, 255, 0, 0.25);
-          stroke-width: 1;
-        }
-
-        svg.a9s-annotationlayer .a9s-handle .a9s-handle-inner {
-          fill: #00ff00;
-          stroke: #00ff00;
-        }
-
-        svg.a9s-annotationlayer .a9s-selection-mask {
-          fill: rgba(0, 0, 0, 0.5);
-        }
-      `}</style>
-    </div>
-  );
-};
-
-export default AnnotationViewer;
-
-/*
-import React, { useEffect, useRef, useState } from "react";
-import OpenSeadragon from "openseadragon";
-import { createOSDAnnotator } from '@annotorious/openseadragon';
-import '@annotorious/openseadragon/annotorious-openseadragon.css';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -472,7 +10,9 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Upload, FileImage, Loader2, Info, Ship, Save, Trash2, Download } from 'lucide-react';
+import { Upload, FileImage, Loader2, Info, Ship, Save, Trash2, Download, ArrowLeft, Pencil, Search } from 'lucide-react';
+
+const API_BASE = 'http://localhost:3000';
 
 const ShipAnnotationPage = () => {
   const navigate = useNavigate();
@@ -482,7 +22,12 @@ const ShipAnnotationPage = () => {
   const [selectedDzi, setSelectedDzi] = useState(null);
   const [imageId, setImageId] = useState(null);
   const [statusMsg, setStatusMsg] = useState("");
-  
+
+  // Upload states
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState("");
+  const fileInputRef = useRef(null);
+
   // Annotation states
   const viewerRef = useRef(null);
   const osdViewer = useRef(null);
@@ -493,19 +38,18 @@ const ShipAnnotationPage = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [imageDimensions, setImageDimensions] = useState(null);
 
-  const sampleDziPath = "/output_dzi.dzi";
-
+  // Fetch available DZIs from backend
   const fetchBackendImages = async () => {
     setIsLoadingList(true);
     try {
-      const res = await fetch("http://localhost:3000/api/dzi/ship");
+      const res = await fetch(`${API_BASE}/api/dzi/ship`);
       if (res.ok) {
         const data = await res.json();
         if (data?.length > 0) {
           setDziList(data);
           setImageMode('backend');
         } else {
-          setStatusMsg("No images found in backend");
+          setStatusMsg("No precomputed DZI images found for ship.");
         }
       }
     } catch (err) {
@@ -516,27 +60,104 @@ const ShipAnnotationPage = () => {
     }
   };
 
+  // Handle TIFF file upload
+  const handleFileUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.name.match(/\.(tif|tiff)$/i)) {
+      alert('Please select a TIFF file.');
+      return;
+    }
+
+    setIsUploading(true);
+    setUploadProgress("Uploading TIFF image...");
+
+    try {
+      // Step 1: Upload file
+      const formData = new FormData();
+      formData.append('image', file);
+
+      const uploadRes = await fetch(`${API_BASE}/api/images/upload/ship`, {
+        method: 'POST',
+        body: formData
+      });
+
+      if (!uploadRes.ok) {
+        const err = await uploadRes.json();
+        throw new Error(err.error || 'Upload failed');
+      }
+
+      const uploadData = await uploadRes.json();
+      const imgId = uploadData.file.imageId;
+      console.log('Upload success:', uploadData);
+
+      // Step 2: Generate DZI
+      setUploadProgress("Generating DZI tiles (this may take a moment)...");
+
+      const dziRes = await fetch(`${API_BASE}/api/dzi/generate/ship/${imgId}`, {
+        method: 'POST'
+      });
+
+      if (!dziRes.ok) {
+        const err = await dziRes.json();
+        throw new Error(err.error || 'DZI generation failed');
+      }
+
+      const dziData = await dziRes.json();
+      console.log('DZI generated:', dziData);
+
+      // Step 3: Load the generated DZI
+      setImageMode('backend');
+      setImageId(imgId);
+      setSelectedDzi(dziData.dziUrl || `/tiles/ship/${imgId}.dzi`);
+      setStatusMsg(`Image uploaded and DZI generated successfully!`);
+      setUploadProgress("");
+
+    } catch (err) {
+      console.error('Upload/DZI error:', err);
+      alert(`Error: ${err.message}`);
+      setUploadProgress("");
+    } finally {
+      setIsUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  // Load sample DZI
   const loadSampleImages = () => {
     setImageMode('sample');
-    setSelectedDzi(sampleDziPath);
+    setSelectedDzi("/output_dzi.dzi");
     setImageId('sample_image');
   };
 
+  // Initialize viewer when DZI is selected
   useEffect(() => {
     if (!selectedDzi) return;
 
     cleanupViewer();
-    initializeViewer();
+    const timer = setTimeout(() => {
+      initializeViewer();
+    }, 100);
 
     return () => {
+      clearTimeout(timer);
       cleanupViewer();
     };
   }, [selectedDzi]);
 
-  const initializeViewer = () => {
-    if (osdViewer.current) return;
+  // Redraw overlays when saved annotations change
+  useEffect(() => {
+    if (osdViewer.current && osdViewer.current.isOpen()) {
+      osdViewer.current.clearOverlays();
+      addSavedAnnotationOverlays();
+    }
+  }, [savedAnnotations]);
 
-    const dziSource = imageMode === 'sample' ? selectedDzi : `http://localhost:3000${selectedDzi}`;
+  const initializeViewer = () => {
+    if (osdViewer.current || !viewerRef.current) return;
+
+    const dziSource = imageMode === 'sample' ? selectedDzi : `${API_BASE}${selectedDzi}`;
 
     osdViewer.current = OpenSeadragon({
       element: viewerRef.current,
@@ -561,7 +182,7 @@ const ShipAnnotationPage = () => {
       const dimensions = tiledImage.getContentSize();
       setImageDimensions({ width: dimensions.x, height: dimensions.y });
       console.log('Image dimensions:', dimensions);
-      
+
       initializeAnnotations();
       addSavedAnnotationOverlays();
       setStatusMsg("Image loaded successfully");
@@ -649,7 +270,7 @@ const ShipAnnotationPage = () => {
 
       setSavedAnnotations(prev => [...prev, ...newDetections]);
       annotatorRef.current.clearAnnotations();
-      
+
       setStatusMsg(`Saved ${newDetections.length} annotation(s)`);
       alert(`Successfully saved ${newDetections.length} annotations!`);
 
@@ -671,7 +292,10 @@ const ShipAnnotationPage = () => {
       imageId: imageId,
       imageDimensions: imageDimensions,
       timestamp: new Date().toISOString(),
-      annotations: savedAnnotations,
+      annotations: savedAnnotations.map(a => ({
+        ...a,
+        type: 'manual_annotation'
+      })),
       metadata: {
         totalAnnotations: savedAnnotations.length,
         annotationType: 'manual_ship_annotation'
@@ -681,7 +305,7 @@ const ShipAnnotationPage = () => {
     const jsonStr = JSON.stringify(exportData, null, 2);
     const blob = new Blob([jsonStr], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
-    
+
     const link = document.createElement('a');
     link.href = url;
     link.download = `ship_annotations_${imageId}_${Date.now()}.json`;
@@ -713,38 +337,70 @@ const ShipAnnotationPage = () => {
     setStatusMsg("Loading image...");
   };
 
+  const resetToSelection = () => {
+    cleanupViewer();
+    setImageMode(null);
+    setSelectedDzi(null);
+    setImageId(null);
+    setSavedAnnotations([]);
+    setAnnotationCount(0);
+    setStatusMsg("");
+    setDziList([]);
+  };
+
+  // ── Image Source Selection Screen ──
   if (!imageMode) {
     return (
       <div className="container max-w-5xl mx-auto py-8">
         <Card>
           <CardHeader>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-3">
+              <Button variant="ghost" size="sm" onClick={() => navigate('/dashboard')}>
+                <ArrowLeft className="h-4 w-4 mr-1" /> Back
+              </Button>
               <Ship className="h-6 w-6 text-primary" />
-              <CardTitle>Ship Annotation Tool</CardTitle>
+              <div>
+                <CardTitle>Ship Annotation Tool</CardTitle>
+                <CardDescription>Choose how to load images for annotation</CardDescription>
+              </div>
             </div>
-            <CardDescription>Choose how to load images for annotation</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
             <div className="grid md:grid-cols-2 gap-4">
-              <Card 
-                className="cursor-pointer hover:border-primary transition-colors" 
-                onClick={() => navigate('/upload')}
-              >
+              {/* Upload TIFF */}
+              <Card className="cursor-pointer hover:border-primary transition-colors relative">
                 <CardContent className="pt-6">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".tif,.tiff"
+                    onChange={handleFileUpload}
+                    className="absolute inset-0 opacity-0 cursor-pointer z-10"
+                    disabled={isUploading}
+                  />
                   <div className="flex items-center gap-4">
                     <div className="p-3 rounded-lg bg-primary/10">
-                      <Upload className="h-6 w-6 text-primary" />
+                      {isUploading ? (
+                        <Loader2 className="h-6 w-6 text-primary animate-spin" />
+                      ) : (
+                        <Upload className="h-6 w-6 text-primary" />
+                      )}
                     </div>
                     <div>
-                      <h3 className="font-semibold">Upload Image</h3>
-                      <p className="text-sm text-muted-foreground">Upload SAR images for annotation</p>
+                      <h3 className="font-semibold">
+                        {isUploading ? 'Processing...' : 'Upload TIFF Image'}
+                      </h3>
+                      <p className="text-sm text-muted-foreground">
+                        {uploadProgress || 'Upload a SAR TIFF → auto-generate DZI → annotate'}
+                      </p>
                     </div>
                   </div>
                 </CardContent>
               </Card>
 
-              <Card 
-                className="cursor-pointer hover:border-primary transition-colors" 
+              {/* Sample Image */}
+              <Card
+                className="cursor-pointer hover:border-primary transition-colors"
                 onClick={loadSampleImages}
               >
                 <CardContent className="pt-6">
@@ -754,7 +410,7 @@ const ShipAnnotationPage = () => {
                     </div>
                     <div>
                       <h3 className="font-semibold">Sample Images</h3>
-                      <p className="text-sm text-muted-foreground">Annotate pre-loaded sample</p>
+                      <p className="text-sm text-muted-foreground">Annotate pre-loaded sample DZI</p>
                     </div>
                   </div>
                 </CardContent>
@@ -764,7 +420,7 @@ const ShipAnnotationPage = () => {
             <Separator />
 
             <div className="text-center space-y-3">
-              <p className="text-sm text-muted-foreground">Or load from backend storage</p>
+              <p className="text-sm text-muted-foreground">Or load precomputed DZI from backend storage</p>
               <Button variant="secondary" onClick={fetchBackendImages} disabled={isLoadingList}>
                 {isLoadingList ? (
                   <>
@@ -775,6 +431,9 @@ const ShipAnnotationPage = () => {
                   'Load Backend Images'
                 )}
               </Button>
+              {statusMsg && (
+                <p className="text-sm text-muted-foreground">{statusMsg}</p>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -782,13 +441,15 @@ const ShipAnnotationPage = () => {
     );
   }
 
+  // ── Annotation Workspace ──
   return (
     <div className="container max-w-7xl mx-auto py-6 space-y-6">
-      {imageMode === 'backend' && (
+      {/* Image Selection Header (backend mode) */}
+      {imageMode === 'backend' && !selectedDzi && (
         <Card>
           <CardHeader>
-            <CardTitle>Image Selection</CardTitle>
-            <CardDescription>Select an image to annotate ships</CardDescription>
+            <CardTitle>Select Image</CardTitle>
+            <CardDescription>Choose a precomputed DZI image to annotate</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid md:grid-cols-2 gap-4">
@@ -805,45 +466,42 @@ const ShipAnnotationPage = () => {
                   </SelectContent>
                 </Select>
               </div>
-              {imageId && (
-                <div className="space-y-2">
-                  <Label>Image ID</Label>
-                  <Badge variant="secondary" className="font-mono">{imageId}</Badge>
-                </div>
-              )}
             </div>
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={() => {
-                setImageMode(null);
-                setSelectedDzi(null);
-                setImageId(null);
-                setSavedAnnotations([]);
-                setAnnotationCount(0);
-              }}
-            >
-              Change Source
+            <Button variant="outline" size="sm" onClick={resetToSelection}>
+              ← Change Source
             </Button>
           </CardContent>
         </Card>
       )}
 
+      {/* Backend mode with selected image */}
+      {imageMode === 'backend' && selectedDzi && (
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <Badge variant="secondary" className="font-mono">{imageId}</Badge>
+                {imageDimensions && (
+                  <Badge variant="outline" className="font-mono text-xs">
+                    {imageDimensions.width} × {imageDimensions.height}
+                  </Badge>
+                )}
+              </div>
+              <Button variant="outline" size="sm" onClick={resetToSelection}>
+                Change Source
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Sample mode */}
       {imageMode === 'sample' && (
         <Alert>
           <Info className="h-4 w-4" />
           <AlertDescription className="flex items-center justify-between">
             <span>Annotating sample image</span>
-            <Button 
-              variant="link" 
-              size="sm" 
-              onClick={() => {
-                setImageMode(null);
-                setSelectedDzi(null);
-                setSavedAnnotations([]);
-                setAnnotationCount(0);
-              }}
-            >
+            <Button variant="link" size="sm" onClick={resetToSelection}>
               Change
             </Button>
           </AlertDescription>
@@ -852,6 +510,7 @@ const ShipAnnotationPage = () => {
 
       {selectedDzi && (
         <>
+          {/* Toolbar */}
           <Card>
             <CardContent className="p-4">
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
@@ -868,11 +527,6 @@ const ShipAnnotationPage = () => {
                       Saved: {savedAnnotations.length}
                     </span>
                   </div>
-                  {imageDimensions && (
-                    <Badge variant="outline" className="font-mono text-xs">
-                      {imageDimensions.width} × {imageDimensions.height}
-                    </Badge>
-                  )}
                 </div>
 
                 <div className="flex items-center gap-2 flex-wrap">
@@ -882,7 +536,7 @@ const ShipAnnotationPage = () => {
                     variant={isDrawingMode ? "default" : "secondary"}
                     className={isDrawingMode ? "animate-pulse" : ""}
                   >
-                    {isDrawingMode ? '✏️ Drawing' : '🔍 Pan/Zoom'}
+                    {isDrawingMode ? (<><Pencil className="h-4 w-4 mr-1" /> Drawing</>) : (<><Search className="h-4 w-4 mr-1" /> Pan/Zoom</>)}
                   </Button>
 
                   {isDrawingMode && (
@@ -928,12 +582,13 @@ const ShipAnnotationPage = () => {
             </CardContent>
           </Card>
 
+          {/* Viewer */}
           <Card>
             <CardHeader>
               <CardTitle>Annotation Workspace</CardTitle>
               <CardDescription>
-                {isDrawingMode 
-                  ? "Click and drag to draw rectangles around ships" 
+                {isDrawingMode
+                  ? "Click and drag to draw rectangles around ships"
                   : "Enable drawing mode to annotate"}
               </CardDescription>
             </CardHeader>
@@ -946,12 +601,12 @@ const ShipAnnotationPage = () => {
 
                 {isDrawingMode && (
                   <div className="absolute bottom-4 left-4 px-4 py-2 rounded-lg bg-orange-900/90 border border-orange-600 text-white font-mono text-sm">
-                    <div className="font-bold mb-1">✏️ Rectangle Mode</div>
+                    <div className="font-bold mb-1 flex items-center gap-1"><Pencil className="h-3 w-3" /> Rectangle Mode</div>
                     <div className="text-gray-200 text-xs">
                       Click and drag to annotate ships
                     </div>
-                    <div className="text-yellow-300 mt-1 text-xs">
-                      💾 Click SAVE to persist annotations
+                    <div className="text-yellow-300 mt-1 text-xs flex items-center gap-1">
+                      <Save className="h-3 w-3" /> Click SAVE to persist annotations
                     </div>
                   </div>
                 )}
@@ -1011,5 +666,3 @@ const ShipAnnotationPage = () => {
 };
 
 export default ShipAnnotationPage;
-*/
-

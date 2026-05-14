@@ -1,0 +1,9 @@
+node_modules
+__pycache__
+*.pyc
+.git
+*.log
+.env
+shared/uploads/*
+shared/tiles/*
+shared/outputs/*

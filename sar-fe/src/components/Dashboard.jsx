@@ -1,6 +1,6 @@
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { Satellite, LogOut, Ship, FileImage, Droplet, Edit3, CheckCheck, UploadCloud } from 'lucide-react';
+import { Satellite, LogOut, Ship, FileImage, Droplet, Edit3, CheckCheck } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -123,14 +123,6 @@ const Dashboard = () => {
       icon: CheckCheck,
       route: '/validators',
       color: 'green'
-    },
-    {
-      id: 'image-upload',
-      title: 'Image Upload',
-      description: 'Upload SAR images for processing and annotation',
-      icon: UploadCloud,
-      route: '/upload',
-      color: 'purple'
     }
   ];
 
@@ -140,8 +132,7 @@ const Dashboard = () => {
       cyan: 'bg-cyan-500/10 border-cyan-500/20 text-cyan-500',
       orange: 'bg-orange-500/10 border-orange-500/20 text-orange-500',
       amber: 'bg-amber-500/10 border-amber-500/20 text-amber-500',
-      green: 'bg-green-500/10 border-green-500/20 text-green-500',
-      purple: 'bg-purple-500/10 border-purple-500/20 text-purple-500'
+      green: 'bg-green-500/10 border-green-500/20 text-green-500'
     };
     return colors[color] || colors.blue;
   };

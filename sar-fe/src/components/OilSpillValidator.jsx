@@ -5,17 +5,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
-import { AlertCircle, Upload, Image as ImageIcon, Grid3x3, RotateCcw, Home } from 'lucide-react';
+import { AlertCircle, Upload, Image as ImageIcon, Grid3x3, RotateCcw, Home, Loader2 } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 
-const OilSpillValidator = ({
-  availableDziImages = [
-    { id: 1, name: "SAR Image", path: "public/output_dzi.dzi" },
-    { id: 2, name: "Oil Spill", path: "output_dzi/oilspill_map.dzi" },
-    { id: 3, name: "Oil Spill", path: "output_dzi/Oilspill.dzi" },
-  ]
-}) => {
+const API_BASE = 'http://localhost:3000';
+
+const OilSpillValidator = () => {
   const viewerRef = useRef(null);
   const containerRef = useRef(null);
   const osdViewer = useRef(null);
@@ -24,6 +20,8 @@ const OilSpillValidator = ({
   const [jsonFile, setJsonFile] = useState(null);
   const [selectedDzi, setSelectedDzi] = useState('');
   const [imageSource, setImageSource] = useState('upload');
+  const [dziList, setDziList] = useState([]);
+  const [isLoadingDzi, setIsLoadingDzi] = useState(false);
   const [annotationData, setAnnotationData] = useState(null);
   const [isImageLoaded, setIsImageLoaded] = useState(false);
   const [imageUrl, setImageUrl] = useState(null);
@@ -75,6 +73,27 @@ const OilSpillValidator = ({
     setSelectedDzi('');
     setImageDimensions(null);
     setError(null);
+    if (source === 'dzi') {
+      fetchDziList();
+    }
+  };
+
+  const fetchDziList = async () => {
+    setIsLoadingDzi(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/dzi/oilspill`);
+      if (res.ok) {
+        const data = await res.json();
+        setDziList(Array.isArray(data) ? data : []);
+      } else {
+        setDziList([]);
+      }
+    } catch (err) {
+      console.error('Error fetching DZI list:', err);
+      setDziList([]);
+    } finally {
+      setIsLoadingDzi(false);
+    }
   };
 
   const handleImageUpload = (e) => {
@@ -126,7 +145,6 @@ const OilSpillValidator = ({
           const data = JSON.parse(event.target.result);
           
           const polygonAnnotations = data.annotations.filter(a => {
-            if (a.type !== 'polygon') return false;
             if (!a.points || !Array.isArray(a.points)) return false;
             if (a.points.length < 3) return false;
             return true;
@@ -214,7 +232,7 @@ const OilSpillValidator = ({
   const addDziAnnotationOverlays = () => {
     if (!osdViewer.current || !annotationData) return;
 
-    const polygonAnnotations = annotationData.annotations.filter(a => a.type === 'polygon');
+    const polygonAnnotations = annotationData.annotations.filter(a => a.points && Array.isArray(a.points) && a.points.length >= 3);
     const svgNS = "http://www.w3.org/2000/svg";
     const container = osdViewer.current.canvas;
 
@@ -249,8 +267,8 @@ const OilSpillValidator = ({
       const polygon = document.createElementNS(svgNS, "polygon");
       const pointsStr = viewportPoints.map(p => `${p.x},${p.y}`).join(' ');
       polygon.setAttribute("points", pointsStr);
-      polygon.setAttribute("fill", "hsl(var(--primary) / 0.2)");
-      polygon.setAttribute("stroke", "hsl(var(--primary))");
+      polygon.setAttribute("fill", "rgba(239, 68, 68, 0.2)");
+      polygon.setAttribute("stroke", "#ef4444");
       polygon.setAttribute("stroke-width", "2");
 
       svg.appendChild(polygon);
@@ -261,7 +279,7 @@ const OilSpillValidator = ({
       const text = document.createElementNS(svgNS, "text");
       text.setAttribute("x", minX);
       text.setAttribute("y", minY - 10);
-      text.setAttribute("fill", "hsl(var(--primary))");
+      text.setAttribute("fill", "#ef4444");
       text.setAttribute("font-size", "12");
       text.setAttribute("font-weight", "600");
       text.setAttribute("font-family", "monospace");
@@ -394,7 +412,7 @@ const OilSpillValidator = ({
 
   const getPolygonAnnotations = () => {
     if (!annotationData) return [];
-    return annotationData.annotations.filter(a => a.type === 'polygon');
+    return annotationData.annotations.filter(a => a.points && Array.isArray(a.points) && a.points.length >= 3);
   };
 
   const isReadyToRender = () => {
@@ -482,19 +500,25 @@ const OilSpillValidator = ({
             ) : (
               <>
                 <div className="space-y-2">
-                  <Label htmlFor="dzi-select">DZI Image</Label>
-                  <Select value={selectedDzi} onValueChange={handleDziSelection}>
-                    <SelectTrigger id="dzi-select">
-                      <SelectValue placeholder="Select DZI image" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {availableDziImages.map((dzi) => (
-                        <SelectItem key={dzi.id} value={dzi.path}>
-                          {dzi.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <Label htmlFor="dzi-select">DZI Image (Oil Spill)</Label>
+                  {isLoadingDzi ? (
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Loader2 className="h-4 w-4 animate-spin" /> Loading...
+                    </div>
+                  ) : (
+                    <Select value={selectedDzi} onValueChange={handleDziSelection}>
+                      <SelectTrigger id="dzi-select">
+                        <SelectValue placeholder={dziList.length === 0 ? 'No DZI images found' : 'Select DZI image'} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {dziList.map((dzi, idx) => (
+                          <SelectItem key={idx} value={`${API_BASE}${dzi.dzi}`}>
+                            {dzi.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
                 </div>
                 {selectedDzi && imageDimensions && (
                   <Badge variant="secondary" className="font-mono text-xs">
@@ -631,8 +655,8 @@ const OilSpillValidator = ({
             <span>Viewer {imageSource === 'dzi' && '(DZI Mode)'}</span>
             {isImageLoaded && annotationData && (
               <div className="flex items-center gap-2 text-sm font-normal">
-                <div className="w-3 h-3 rounded-sm bg-primary border border-primary"></div>
-                <span className="text-muted-foreground">Oil Spill Polygons</span>
+                <div className="w-3 h-3 rounded-sm bg-red-500 border border-red-500"></div>
+                <span className="text-muted-foreground">Oil Spill Polygons (Red)</span>
               </div>
             )}
           </CardTitle>
@@ -733,14 +757,14 @@ const OilSpillValidator = ({
                       >
                         <polygon
                           points={pointsStr}
-                          fill="hsl(var(--primary) / 0.2)"
-                          stroke="hsl(var(--primary))"
+                          fill="rgba(239, 68, 68, 0.2)"
+                          stroke="#ef4444"
                           strokeWidth="2"
                         />
                         <text
                           x={minX}
                           y={minY - 10}
-                          fill="hsl(var(--primary))"
+                          fill="#ef4444"
                           fontSize="12"
                           fontWeight="600"
                           fontFamily="monospace"

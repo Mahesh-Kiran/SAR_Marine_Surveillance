@@ -8,15 +8,12 @@ import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
-import { AlertCircle, Upload, Image as ImageIcon, Grid3x3, RotateCcw, Home } from 'lucide-react';
+import { AlertCircle, Upload, Image as ImageIcon, Grid3x3, RotateCcw, Home, Loader2 } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
-const ShipValidator = ({
-  availableDziImages = [
-    { id: 1, name: "SAR Image", path: "public/output_dzi.dzi" },
-    { id: 2, name: "Oil Spill", path: "output_dzi/oilspill_map.dzi" },
-  ]
-}) => {
+const API_BASE = 'http://localhost:3000';
+
+const ShipValidator = () => {
   const viewerRef = useRef(null);
   const containerRef = useRef(null);
   const osdViewer = useRef(null);
@@ -28,6 +25,8 @@ const ShipValidator = ({
   // DZI selection states
   const [selectedDzi, setSelectedDzi] = useState('');
   const [imageSource, setImageSource] = useState('upload');
+  const [dziList, setDziList] = useState([]);
+  const [isLoadingDzi, setIsLoadingDzi] = useState(false);
 
   // Common states
   const [annotationData, setAnnotationData] = useState(null);
@@ -75,6 +74,28 @@ const ShipValidator = ({
     setSelectedDzi('');
     setImageDimensions(null);
     setError(null);
+    if (source === 'dzi') {
+      fetchDziList();
+    }
+  };
+
+  // Fetch DZI list from backend
+  const fetchDziList = async () => {
+    setIsLoadingDzi(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/dzi/ship`);
+      if (res.ok) {
+        const data = await res.json();
+        setDziList(Array.isArray(data) ? data : []);
+      } else {
+        setDziList([]);
+      }
+    } catch (err) {
+      console.error('Error fetching DZI list:', err);
+      setDziList([]);
+    } finally {
+      setIsLoadingDzi(false);
+    }
   };
 
   // Handle regular image file upload
@@ -220,8 +241,8 @@ const ShipValidator = ({
 
       const elt = document.createElement("div");
       elt.className = "dzi-annotation-box";
-      elt.style.border = "2px solid hsl(var(--primary))";
-      elt.style.background = "hsl(var(--primary) / 0.15)";
+      elt.style.border = "2px solid #ef4444";
+      elt.style.background = "rgba(239, 68, 68, 0.15)";
       elt.style.pointerEvents = "none";
       elt.style.boxSizing = "border-box";
 
@@ -229,8 +250,8 @@ const ShipValidator = ({
       labelDiv.style.position = "absolute";
       labelDiv.style.top = "-24px";
       labelDiv.style.left = "0";
-      labelDiv.style.background = "hsl(var(--primary))";
-      labelDiv.style.color = "hsl(var(--primary-foreground))";
+      labelDiv.style.background = "#ef4444";
+      labelDiv.style.color = "#ffffff";
       labelDiv.style.padding = "2px 6px";
       labelDiv.style.fontSize = "11px";
       labelDiv.style.fontWeight = "600";
@@ -443,19 +464,25 @@ const ShipValidator = ({
             ) : (
               <>
                 <div className="space-y-2">
-                  <Label htmlFor="dzi-select">DZI Image</Label>
-                  <Select value={selectedDzi} onValueChange={handleDziSelection}>
-                    <SelectTrigger id="dzi-select">
-                      <SelectValue placeholder="Select DZI image" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {availableDziImages.map((dzi) => (
-                        <SelectItem key={dzi.id} value={dzi.path}>
-                          {dzi.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <Label htmlFor="dzi-select">DZI Image (Ship)</Label>
+                  {isLoadingDzi ? (
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Loader2 className="h-4 w-4 animate-spin" /> Loading...
+                    </div>
+                  ) : (
+                    <Select value={selectedDzi} onValueChange={handleDziSelection}>
+                      <SelectTrigger id="dzi-select">
+                        <SelectValue placeholder={dziList.length === 0 ? 'No DZI images found' : 'Select DZI image'} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {dziList.map((dzi, idx) => (
+                          <SelectItem key={idx} value={`${API_BASE}${dzi.dzi}`}>
+                            {dzi.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
                 </div>
                 {selectedDzi && imageDimensions && (
                   <Badge variant="secondary" className="font-mono text-xs">
@@ -592,8 +619,8 @@ const ShipValidator = ({
             <span>Viewer {imageSource === 'dzi' && '(DZI Mode)'}</span>
             {isImageLoaded && annotationData && (
               <div className="flex items-center gap-2 text-sm font-normal">
-                <div className="w-3 h-3 rounded-sm bg-primary border border-primary"></div>
-                <span className="text-muted-foreground">Manual Annotations</span>
+                <div className="w-3 h-3 rounded-sm bg-red-500 border border-red-500"></div>
+                <span className="text-muted-foreground">Manual Annotations (Red)</span>
               </div>
             )}
           </CardTitle>
@@ -678,8 +705,8 @@ const ShipValidator = ({
                           top: `${imageScale.offsetY + scaledY}px`,
                           width: `${scaledW}px`,
                           height: `${scaledH}px`,
-                          border: '2px solid hsl(var(--primary))',
-                          background: 'hsl(var(--primary) / 0.15)',
+                          border: '2px solid #ef4444',
+                          background: 'rgba(239, 68, 68, 0.15)',
                           boxSizing: 'border-box',
                         }}
                       >
@@ -688,8 +715,8 @@ const ShipValidator = ({
                             position: 'absolute',
                             top: '-24px',
                             left: '0',
-                            background: 'hsl(var(--primary))',
-                            color: 'hsl(var(--primary-foreground))',
+                            background: '#ef4444',
+                            color: '#ffffff',
                             padding: '2px 6px',
                             fontSize: '11px',
                             fontWeight: '600',

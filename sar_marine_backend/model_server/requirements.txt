@@ -1,3 +1,10 @@
 fastapi
-uvicorn
+uvicorn[standard]
 pyvips
+torch
+torchvision
+transformers
+numpy
+Pillow
+requests
+scipy

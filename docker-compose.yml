@@ -1,0 +1,82 @@
+version: '3.8'
+
+# ============================================
+# SAR Marine Surveillance - Docker Compose
+# Run: docker-compose up --build
+# ============================================
+
+services:
+  # ─── MongoDB ───────────────────────────────
+  mongo:
+    image: mongo:7
+    container_name: sar-mongo
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ─── Node.js Backend (Express API) ─────────
+  node-backend:
+    build:
+      context: ./sar_marine_backend
+      dockerfile: Dockerfile.node
+    container_name: sar-node-backend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+      - NODE_ENV=production
+      - MONGO_URI=mongodb://mongo:27017/sardb
+      - PYTHON_API_BASE=http://ml-backend:8000
+      - CORS_ORIGIN=http://localhost
+      - NODE_BASE=http://node-backend:3000
+    volumes:
+      - shared_data:/app/shared
+    depends_on:
+      mongo:
+        condition: service_healthy
+
+  # ─── Python ML Backend (FastAPI) ───────────
+  ml-backend:
+    build:
+      context: ./sar_marine_backend
+      dockerfile: Dockerfile.python
+    container_name: sar-ml-backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - UPLOADS_DIR=/app/shared/uploads
+      - TILES_DIR=/app/shared/tiles
+      - OUTPUTS_DIR=/app/shared/outputs
+      - SHIP_MODEL_PATH=/app/model_server/models
+      - OILSPILL_MODEL_PATH=/app/model_server/models/oil_spill.pth
+    volumes:
+      - shared_data:/app/shared
+
+  # ─── React Frontend (Nginx) ────────────────
+  frontend:
+    build:
+      context: ./sar-fe
+      dockerfile: Dockerfile
+      args:
+        - VITE_API_BASE_URL=http://localhost:3000
+    container_name: sar-frontend
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      - node-backend
+
+volumes:
+  mongo_data:
+    driver: local
+  shared_data:
+    driver: local
