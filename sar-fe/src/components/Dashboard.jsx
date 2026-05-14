@@ -1,6 +1,6 @@
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { Satellite, LogOut, Ship, FileImage, Droplet, Edit3 } from 'lucide-react';
+import { Satellite, LogOut, Ship, FileImage, Droplet, Edit3, CheckCheck, UploadCloud } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -18,7 +18,7 @@ const Dashboard = () => {
   useEffect(() => {
     const checkPhoneAuth = async () => {
       try {
-        const response = await fetch('http://localhost:3001/api/auth/status', {
+        const response = await fetch('http://localhost:3000/api/auth/status', {
           credentials: 'include'
         });
 
@@ -50,7 +50,7 @@ const Dashboard = () => {
     try {
       if (authType === 'firebase') await logout();
       else if (authType === 'phone')
-        await fetch('http://localhost:3001/api/auth/logout', {
+        await fetch('http://localhost:3000/api/auth/logout', {
           method: 'POST',
           credentials: 'include'
         });
@@ -115,6 +115,22 @@ const Dashboard = () => {
       icon: Edit3,
       route: '/oil-annotation',
       color: 'amber'
+    },
+    {
+      id: 'validators',
+      title: 'Annotation Validator',
+      description: 'Validate ship bounding boxes and oil spill polygon annotations',
+      icon: CheckCheck,
+      route: '/validators',
+      color: 'green'
+    },
+    {
+      id: 'image-upload',
+      title: 'Image Upload',
+      description: 'Upload SAR images for processing and annotation',
+      icon: UploadCloud,
+      route: '/upload',
+      color: 'purple'
     }
   ];
 
@@ -123,7 +139,9 @@ const Dashboard = () => {
       blue: 'bg-blue-500/10 border-blue-500/20 text-blue-500',
       cyan: 'bg-cyan-500/10 border-cyan-500/20 text-cyan-500',
       orange: 'bg-orange-500/10 border-orange-500/20 text-orange-500',
-      amber: 'bg-amber-500/10 border-amber-500/20 text-amber-500'
+      amber: 'bg-amber-500/10 border-amber-500/20 text-amber-500',
+      green: 'bg-green-500/10 border-green-500/20 text-green-500',
+      purple: 'bg-purple-500/10 border-purple-500/20 text-purple-500'
     };
     return colors[color] || colors.blue;
   };
@@ -163,9 +181,9 @@ const Dashboard = () => {
             </div>
 
             <Separator orientation="vertical" className="h-8" />
-            
+
             <ThemeToggleButton />
-            
+
             <Button
               onClick={handleLogout}
               variant="destructive"

@@ -36,12 +36,12 @@ const SarLoader = () => {
                 <circle cx="12" cy="12" r="3" strokeWidth={0.5} fill="currentColor" opacity={0.3} />
               </svg>
             </div>
-            
+
             {/* Signal indicator */}
             <div className="absolute -top-2 -right-2 w-6 h-6 bg-white flex items-center justify-center animate-pulse">
               <div className="w-2 h-2 bg-black rounded-full"></div>
             </div>
-            
+
             {/* Pulsing ring around icon */}
             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-28 h-28 border border-gray-500/30 rounded-full animate-pulse opacity-50"></div>
           </div>
@@ -114,7 +114,7 @@ const SarLoader = () => {
         </div>
       </div>
 
-      <style jsx>{`
+      <style>{`
         @keyframes sarProgress {
           0% { width: 0%; }
           50% { width: 70%; }

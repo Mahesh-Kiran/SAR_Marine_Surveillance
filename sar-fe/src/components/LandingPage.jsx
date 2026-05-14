@@ -8,7 +8,7 @@ const LandingPage = () => {
   return (
     <div className="min-h-screen bg-background relative overflow-hidden">
       {/* Background Image Layer */}
-      <div 
+      <div
         className="absolute inset-0 bg-cover bg-center bg-no-repeat"
         style={{ backgroundImage: `url('/bg.webp')` }}
       >
@@ -66,7 +66,7 @@ const LandingPage = () => {
                 </div>
               </div>
             </div>
-            
+
             {/* Title */}
             <h1 className="text-5xl md:text-6xl font-bold  mb-4 tracking-tight">
               SAR Control
@@ -74,7 +74,7 @@ const LandingPage = () => {
                 Access Terminal
               </span>
             </h1>
-            
+
             {/* Description */}
             <p className="text-lg text-foreground/80 mb-2 max-w-3xl mx-auto leading-relaxed font-medium">
               Classified Synthetic Aperture Radar Authentication System
@@ -86,7 +86,7 @@ const LandingPage = () => {
             {/* CTA Buttons */}
             <div className="flex flex-col sm:flex-row gap-4 justify-center mb-16">
               <Button asChild size="lg" className="font-medium gap-2 bg-white">
-                <Link to="/validator">
+                <Link to="/validators">
                   <span>Validator</span>
                   <ArrowRight className="w-5 h-5" />
                 </Link>

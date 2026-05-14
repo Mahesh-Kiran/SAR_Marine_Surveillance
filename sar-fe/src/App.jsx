@@ -31,8 +31,8 @@ function AppContent() {
   useEffect(() => {
     const checkPhoneAuth = async () => {
       try {
-        const response = await fetch('http://localhost:3001/api/auth/status', { 
-          credentials: 'include' 
+        const response = await fetch('http://localhost:3000/api/auth/status', {
+          credentials: 'include'
         });
         if (response.ok) {
           const data = await response.json();
@@ -70,138 +70,138 @@ function AppContent() {
       <Router>
         <Routes>
           {/* Authentication Routes */}
-          <Route 
-            path="/sign-in" 
+          <Route
+            path="/sign-in"
             element={
               !isAuthenticated ? (
                 <SignInPage />
               ) : (
                 <Navigate to="/dashboard" replace />
               )
-            } 
+            }
           />
-          
-          <Route 
-            path="/sign-up" 
+
+          <Route
+            path="/sign-up"
             element={
               !isAuthenticated ? (
                 <SignUpPage />
               ) : (
                 <Navigate to="/dashboard" replace />
               )
-            } 
+            }
           />
 
-          <Route 
-            path="/phone-auth" 
+          <Route
+            path="/phone-auth"
             element={
               !isAuthenticated ? (
                 <PhoneAuthPage onAuthSuccess={() => setPhoneAuth(true)} />
               ) : (
                 <Navigate to="/dashboard" replace />
               )
-            } 
+            }
           />
-          
+
           {/* Protected Dashboard */}
-          <Route 
-            path="/dashboard" 
+          <Route
+            path="/dashboard"
             element={
               isAuthenticated ? (
-                <Dashboard 
+                <Dashboard
                   authType={getAuthType()}
                   onLogout={() => setPhoneAuth(false)}
                 />
               ) : (
                 <Navigate to="/" replace />
               )
-            } 
+            }
           />
 
           {/* Main Operation Routes */}
-          <Route 
-            path="/ship-detection" 
+          <Route
+            path="/ship-detection"
             element={
               isAuthenticated ? (
                 <ShipViewer />
               ) : (
                 <Navigate to="/" replace />
               )
-            } 
+            }
           />
 
-          <Route 
-            path="/ship-annotation" 
+          <Route
+            path="/ship-annotation"
             element={
               isAuthenticated ? (
                 <AnnotationViewer />
               ) : (
                 <Navigate to="/" replace />
               )
-            } 
+            }
           />
 
-          <Route 
-            path="/oil-detection" 
+          <Route
+            path="/oil-detection"
             element={
               isAuthenticated ? (
                 <AdvancedOilSpillViewer />
               ) : (
                 <Navigate to="/" replace />
               )
-            } 
+            }
           />
 
-          <Route 
-            path="/oil-annotation" 
+          <Route
+            path="/oil-annotation"
             element={
               isAuthenticated ? (
                 <OilSpillAnnotationViewer />
               ) : (
                 <Navigate to="/" replace />
               )
-            } 
+            }
           />
 
           {/* Validator Routes */}
-          <Route 
-            path="/validators" 
+          <Route
+            path="/validators"
             element={
-             
-                <ValidatorPage />
-           
-            } 
+
+              <ValidatorPage />
+
+            }
           />
 
-       
-          
+
+
           {/* Utility Routes */}
-          <Route 
-            path="/test" 
-            element={<TestAuth />} 
+          <Route
+            path="/test"
+            element={<TestAuth />}
           />
-          
-          <Route 
-            path="/upload" 
-            element={<ImageUploadPage />} 
+
+          <Route
+            path="/upload"
+            element={<ImageUploadPage />}
           />
 
           {/* Landing Page */}
-          <Route 
-            path="/" 
+          <Route
+            path="/"
             element={
               isAuthenticated ? (
                 <Navigate to="/dashboard" replace />
               ) : (
                 <LandingPage />
               )
-            } 
+            }
           />
 
           {/* Catch-all redirect */}
-          <Route 
-            path="*" 
-            element={<Navigate to="/" replace />} 
+          <Route
+            path="*"
+            element={<Navigate to="/" replace />}
           />
         </Routes>
       </Router>

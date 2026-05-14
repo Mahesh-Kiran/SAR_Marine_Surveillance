@@ -3,7 +3,7 @@ import OpenSeadragon from "openseadragon";
 import { createOSDAnnotator } from '@annotorious/openseadragon';
 import '@annotorious/openseadragon/annotorious-openseadragon.css';
 
-const AnnotationViewer = ({ 
+const AnnotationViewer = ({
   dziUrl = "/output_dzi.dzi",
   onSaveAnnotations,
   existingDetections = []
@@ -66,7 +66,7 @@ const AnnotationViewer = ({
       const dimensions = tiledImage.getContentSize();
       setImageDimensions({ width: dimensions.x, height: dimensions.y });
       console.log('Image dimensions:', dimensions.x, 'x', dimensions.y);
-      
+
       initializeAnnotations();
       addSavedAnnotationOverlays();
     });
@@ -191,9 +191,9 @@ const AnnotationViewer = ({
     }
 
     // Only manual annotations
-    const manualAnnotations = savedAnnotations.map(d => ({ 
-      ...d, 
-      type: 'manual_annotation' 
+    const manualAnnotations = savedAnnotations.map(d => ({
+      ...d,
+      type: 'manual_annotation'
     }));
 
     const exportData = {
@@ -210,7 +210,7 @@ const AnnotationViewer = ({
     const jsonStr = JSON.stringify(exportData, null, 2);
     const blob = new Blob([jsonStr], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
-    
+
     const link = document.createElement('a');
     link.href = url;
     link.download = `ship_annotations_${Date.now()}.json`;
@@ -233,7 +233,7 @@ const AnnotationViewer = ({
     annotations.forEach((annotation, index) => {
       console.log(`\n--- Annotation ${index} ---`);
       console.log('Full structure:', JSON.stringify(annotation, null, 2));
-      
+
       const selector = annotation.target.selector;
       if (selector.geometry) {
         console.log('Coordinates:', {
@@ -294,11 +294,10 @@ const AnnotationViewer = ({
           <div className="flex items-center gap-2">
             <button
               onClick={toggleDrawingMode}
-              className={`px-3 py-1 rounded font-mono text-xs font-bold transition-all ${
-                isDrawingMode
+              className={`px-3 py-1 rounded font-mono text-xs font-bold transition-all ${isDrawingMode
                   ? 'bg-orange-600 border-2 border-orange-400 text-white shadow-lg animate-pulse'
                   : 'bg-green-600 border-2 border-green-400 text-white shadow-md'
-              }`}
+                }`}
               title={isDrawingMode ? 'Click to enable Pan/Zoom' : 'Click to enable Drawing'}
             >
               {isDrawingMode ? '✏ DRAW MODE' : '🔍 PAN/ZOOM MODE'}
@@ -309,11 +308,10 @@ const AnnotationViewer = ({
                 <button
                   onClick={() => handleToolChange('rectangle')}
                   title="Rectangle Tool"
-                  className={`p-2 rounded transition-all ${
-                    currentTool === 'rectangle'
+                  className={`p-2 rounded transition-all ${currentTool === 'rectangle'
                       ? 'bg-blue-600 text-white shadow-md scale-110'
                       : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-                  }`}
+                    }`}
                 >
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
@@ -337,11 +335,10 @@ const AnnotationViewer = ({
                   onClick={saveAnnotations}
                   disabled={isSaving || annotationCount === 0}
                   title="Save Annotations"
-                  className={`p-2 rounded transition-all font-bold ${
-                    isSaving || annotationCount === 0
+                  className={`p-2 rounded transition-all font-bold ${isSaving || annotationCount === 0
                       ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
                       : 'bg-lime-600 text-white hover:bg-lime-500 shadow-md'
-                  }`}
+                    }`}
                 >
                   {isSaving ? (
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="animate-spin">

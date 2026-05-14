@@ -21,7 +21,7 @@ const ValidatorPage = () => {
   useEffect(() => {
     const checkPhoneAuth = async () => {
       try {
-        const response = await fetch('http://localhost:3001/api/auth/status', {
+        const response = await fetch('http://localhost:3000/api/auth/status', {
           credentials: 'include'
         });
 
@@ -53,7 +53,7 @@ const ValidatorPage = () => {
     try {
       if (authType === 'firebase') await logout();
       else if (authType === 'phone')
-        await fetch('http://localhost:3001/api/auth/logout', {
+        await fetch('http://localhost:3000/api/auth/logout', {
           method: 'POST',
           credentials: 'include'
         });
