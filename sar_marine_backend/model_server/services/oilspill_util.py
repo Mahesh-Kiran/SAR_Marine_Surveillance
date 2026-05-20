@@ -528,5 +528,8 @@ def predict_single_image(image_path, output_path, model, transform, device):
             preds = output.squeeze(0).argmax(dim=0).cpu().numpy()
 
         pred_mask = Image.fromarray((preds * 255).astype(np.uint8))
+        # Resize the 224x224 mask back to the original tile dimensions!
+        # Use NEAREST to preserve binary 0/255 labels
+        pred_mask = pred_mask.resize(image.size, Image.Resampling.NEAREST)
         pred_mask.save(output_path)
         print(f"Saved predicted mask to: {output_path}")
