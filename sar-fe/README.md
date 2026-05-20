@@ -1,137 +1,42 @@
-# SAR Client - Authentication System
+# SAR Marine Surveillance — Frontend 🎨
 
-A beautiful, modern authentication system with SAR (Synthetic Aperture Radar) inspired design, built with React, Clerk, and Tailwind CSS.
+This is the interactive UI for the SAR Marine Surveillance platform. When you're dealing with gigapixel satellite images (often over 1GB in size), standard HTML `<img>` tags will instantly crash your browser's memory. 
 
-## Features
+To solve this, our frontend uses **OpenSeadragon** to render images exactly like Google Maps does—fetching only the small, specific `.dzi` (Deep Zoom Image) tiles for the exact area and zoom level you're looking at.
 
-- 🔐 **Secure Authentication** with Clerk
-- 🎨 **Beautiful SAR-inspired UI** with glass morphism effects
-- 📱 **Responsive Design** that works on all devices
-- 🚀 **Modern React** with hooks and functional components
-- 🎯 **Google OAuth** and other social login options
-- 📊 **Dashboard** with beautiful stats and activity feed
+## 🌟 What makes this frontend special?
 
-## Screenshots
+- **Type-Aware Uploads**: Click "Upload" from the Ship Viewer, and you're locked into Ship Detection. Click it from the Oil Spill Viewer, and you're locked into Oil Spills. No confusion.
+- **Synchronized Viewports**: Our Oil Spill viewer features three side-by-side canvases (Original, Mask, and Red Overlay). When you pan or zoom on one, the other two follow along flawlessly.
+- **Real-Time Polling**: AI inference takes time. The frontend polls the Node.js backend every 3 seconds to show you live job progress (Queued -> Processing -> Completed).
+- **Interactive Annotations**: Ship bounding boxes are drawn dynamically on top of the DeepZoom canvas using coordinate math to map pixel space to viewport space.
 
-The app features:
-- Animated gradient backgrounds inspired by SAR imagery
-- Glass morphism cards with backdrop blur effects
-- Satellite and radar-themed icons
-- Smooth animations and transitions
-- Professional dashboard with real-time stats
+## 🛠 Tech Stack
+- **React 18** with **Vite** (Lightning fast HMR)
+- **TailwindCSS** + **shadcn/ui** (Clean, modern components)
+- **OpenSeadragon** (Gigapixel rendering)
+- **Firebase Auth** (Phone & Google Sign-In)
+- **React Router DOM** (Client-side routing)
 
-## Setup Instructions
+## 🚀 Setup & Run
 
-### 1. Install Dependencies
+### 1. Environment Setup
+
+We've provided a template so you know exactly what keys you need:
+```bash
+cp .env.example .env
+```
+Fill in `.env` with your Firebase project credentials. By default, it looks for the Node.js API on `http://localhost:3000`.
+
+### 2. Start the Dev Server
 
 ```bash
 npm install
-```
-
-### 2. Set up Clerk Authentication
-
-1. Go to [Clerk Dashboard](https://dashboard.clerk.com/)
-2. Create a new application
-3. Copy your **Publishable Key**
-4. Replace the placeholder in `src/App.jsx`:
-
-```javascript
-const CLERK_PUBLISHABLE_KEY = 'pk_test_YOUR_ACTUAL_KEY_HERE';
-```
-
-### 3. Configure Social Login (Optional)
-
-In your Clerk Dashboard:
-1. Go to **User & Authentication** → **Social Connections**
-2. Enable **Google OAuth**
-3. Add your Google OAuth credentials
-
-### 4. Install Tailwind CSS
-
-```bash
-npm install -D tailwindcss postcss autoprefixer
-npx tailwindcss init -p
-```
-
-### 5. Run the Development Server
-
-```bash
 npm run dev
 ```
+Open `http://localhost:5173`. 
 
-## Project Structure
+*(Note: To actually run detections, you must also be running the Node.js backend and the Python ML Docker container. See the [root README](../README.md) for the full stack startup guide).*
 
-```
-src/
-├── components/
-│   ├── AuthLayout.jsx      # Main authentication layout
-│   ├── SignIn.jsx          # Sign in page
-│   ├── SignUp.jsx          # Sign up page
-│   └── Dashboard.jsx       # Authenticated user dashboard
-├── App.jsx                 # Main app with routing
-└── index.css              # Tailwind CSS and custom styles
-```
-
-## Routes
-
-- `/` - Redirects to dashboard if signed in, otherwise to sign-in
-- `/sign-in` - Sign in page
-- `/sign-up` - Sign up page
-- `/dashboard` - Main dashboard (requires authentication)
-
-## Customization
-
-### Colors
-The app uses a SAR-inspired color palette:
-- Primary: Blue gradients (`from-blue-500 to-indigo-600`)
-- Background: Dark gradients (`from-slate-900 via-blue-900 to-indigo-900`)
-- Accent: Purple and green highlights
-
-### Icons
-Uses Lucide React icons:
-- `Satellite` - Main app icon
-- `Radar` - Scanning/processing
-- `Waves` - Data visualization
-- `Map` - Project management
-
-## Technologies Used
-
-- **React 19** - Modern React with hooks
-- **Clerk** - Authentication and user management
-- **Tailwind CSS** - Utility-first CSS framework
-- **Lucide React** - Beautiful icon library
-- **React Router** - Client-side routing
-- **Vite** - Fast build tool
-
-## Environment Variables
-
-Create a `.env` file in the root directory:
-
-```env
-VITE_CLERK_PUBLISHABLE_KEY=pk_test_your_key_here
-```
-
-Then update `src/App.jsx`:
-
-```javascript
-const CLERK_PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
-```
-
-## Deployment
-
-The app is ready for deployment on:
-- Vercel
-- Netlify
-- GitHub Pages
-- Any static hosting service
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Submit a pull request
-
-## License
-
-MIT License - feel free to use this project for your own applications!
+---
+*Developed by Team-12 — E. Shiva Prasad Reddy & C. Mahesh Kiran, KMIT*

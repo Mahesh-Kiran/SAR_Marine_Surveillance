@@ -1,0 +1,73 @@
+# ============================================================
+# Root-level .gitignore for SAR Marine Surveillance System
+# ============================================================
+
+# ── Environment / Secrets ────────────────────────────────────
+# Never commit actual env files — they contain API keys and credentials
+.env
+.env.*
+!.env.example
+
+# ── Node.js ──────────────────────────────────────────────────
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+package-lock.json
+
+# ── Frontend build output ─────────────────────────────────────
+sar-fe/dist/
+sar-fe/dist-ssr/
+
+# ── Python ──────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.so
+*.pyo
+*.pyd
+
+# ── Virtual environments ──────────────────────────────────────
+venv/
+env/
+.venv/
+dl_env/
+
+# ── ML model weights (large files — store in cloud/LFS) ──────
+*.pt
+*.pth
+*.ckpt
+*.onnx
+*.safetensors
+*.pb
+*.h5
+*.pkl
+
+# ── Shared runtime data (generated at runtime, not source code)
+sar_marine_backend/shared/uploads/
+sar_marine_backend/shared/tiles/
+sar_marine_backend/shared/outputs/
+
+# ── Editor / OS ───────────────────────────────────────────────
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.swp
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+
+# ── Logs ──────────────────────────────────────────────────────
+*.log
+*.out
+*.err
+logs/
+
+# ── Docker ───────────────────────────────────────────────────
+docker-compose.override.yml
+
+# ── Misc ─────────────────────────────────────────────────────
+*.pid
+*.local
