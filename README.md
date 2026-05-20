@@ -1,59 +1,68 @@
 # SAR Marine Surveillance System
 
+## 🌊 Use Case Introduction
 Modern maritime monitoring faces significant challenges: millions of square miles of ocean must be surveilled to identify unauthorized vessels and detect ecological disasters such as oil spills. Manual analysis of high-resolution Synthetic Aperture Radar (SAR) imagery is computationally intensive, extremely time-consuming, and prone to human error.
 
-The **SAR Marine Surveillance System** is an enterprise-grade, deep learning-powered platform designed to solve this problem. It automates the analysis of gigapixel satellite images, delivering real-time, highly accurate detection of maritime objects and environmental hazards.
+The **SAR Marine Surveillance System** is an enterprise-grade, deep learning-powered platform designed to solve this problem. It automates the analysis of gigapixel satellite images, delivering real-time, highly accurate detection of maritime objects and environmental hazards. This empowers **Coastal Security Agencies** to spot "dark ships" lacking AIS transponders, and **Environmental Protection Teams** to instantly locate oil spills for rapid containment.
 
 ---
 
-## 🌟 Full Feature Breakdown & Real-World Use Cases
-
-The platform is built with a highly specialized toolkit designed for maritime operators, defense agencies, and environmental monitoring teams. Here is a breakdown of every core feature, what it does, and exactly when it comes in handy:
-
-### 1. Context-Aware AI Upload Workspaces
-- **What it does:** The system provides strictly separated environments for Ship Detection and Oil Spill Detection. Uploads are strictly mapped to their respective AI pipelines to prevent data contamination.
-- **When it comes in handy:** When an operator is rapidly processing a backlog of satellite imagery, this ensures they don't accidentally run an oil spill model on a shipping lane image, saving massive amounts of compute time.
-
-### 2. Gigapixel Deep Zoom Viewer (OpenSeadragon)
-- **What it does:** Standard browsers crash when attempting to load 1GB+ TIFF images. Our engine slices these raw satellite images into tiny, optimized Deep Zoom Image (DZI) tiles on the fly. It functions just like Google Maps—only fetching the exact pixels you are actively viewing.
-- **When it comes in handy:** When you need to inspect high-resolution SAR data down to the individual pixel level without downloading massive files or crashing your workstation.
-
-### 3. Deformable DETR (Ship Detection Pipeline)
-- **What it does:** A specialized Detection Transformer model utilizing a ResNet-50 backbone and deformable self-attention mechanisms. It maps dynamic bounding boxes around vessels.
-- **When it comes in handy:** **Coastal Security & Defense.** This feature is critical for detecting "dark ships" (unauthorized or illegal vessels that have disabled their AIS transponders). It allows border security to spot illegal fishing or smuggling operations instantly in heavily cluttered sea conditions.
-
-### 4. TransUNet (Oil Spill Segmentation Pipeline)
-- **What it does:** A hybrid architecture combining the granular spatial feature extraction of a Convolutional Neural Network (U-Net) with the global contextual awareness of Vision Transformers. It generates a pixel-perfect segmentation mask outlining the hazard.
-- **When it comes in handy:** **Environmental Protection.** Oil spills spread rapidly and irregularly due to ocean currents. This feature allows rapid response teams to see the exact boundaries of a spill immediately after a satellite pass, directing containment booms precisely where they are needed to prevent ecological catastrophe.
-
-### 5. Synchronized Multi-Panel Analysis
-- **What it does:** The interface provides up to three side-by-side viewports (Original SAR, AI Mask, Blended Overlay) that are mathematically synchronized. Panning or zooming in one panel instantly updates the others.
-- **When it comes in handy:** When verifying AI results. Operators need to ensure the AI isn't hallucinating due to radar noise (like a natural oil seep or a wake). The synchronized panels allow human experts to rapidly cross-reference the raw radar data against the AI's predictions without manually panning back and forth.
-
-### 6. Asynchronous Job Orchestration & Webhooks
-- **What it does:** Heavy AI workloads are offloaded to a dedicated GPU Python microservice. The Node.js gateway acts as a secure queue manager, tracking the job state and listening for a webhook callback once the Python engine finishes.
-- **When it comes in handy:** When processing multiple massive images simultaneously. The frontend stays perfectly responsive, polling for progress, while the backend chews through the compute-heavy tasks without dropping user requests.
-
----
-
-## High-Level Architecture
+## 🏗 High-Level Architecture
 
 ![SAR Marine Surveillance System Architecture](./Architecture.jpeg)
 
 The platform utilizes a decoupled, three-tier microservice architecture to ensure high availability and responsiveness:
-
-1. **Client Interface (React.js):** The high-performance frontend dashboard utilizing Vite, TailwindCSS, and OpenSeadragon.
-2. **Gateway API (Node.js/Express):** Acts as the secure orchestration layer handling authentication (Firebase), data persistence (MongoDB), and job queuing.
-3. **Machine Learning Service (Python/FastAPI):** A GPU-accelerated inference engine running the Deformable DETR and TransUNet models, utilizing `pyvips` for on-the-fly image tiling.
+1. **Client Interface (React.js):** The high-performance frontend dashboard utilizing Vite, TailwindCSS, and OpenSeadragon for gigapixel image tiling.
+2. **Gateway API (Node.js/Express):** Acts as the secure orchestration layer handling authentication (Firebase), data persistence (MongoDB), and asynchronous job queuing.
+3. **Machine Learning Service (Python/FastAPI):** A GPU-accelerated inference engine running the deep learning models, utilizing `pyvips` for on-the-fly image tiling and mask generation.
 
 ---
 
-## Deployment & Setup
+## 🌟 Core Features
+
+### 1. Ship Detection (Deformable DETR)
+Detects marine vessels in high-clutter environments. By using a Detection Transformer model, the system draws precise bounding boxes around ships even across massive gigapixel images. This is critical for anti-piracy, border defense, and monitoring illegal fishing.
+
+### 2. Oil Spill Detection (TransUNet)
+Generates pixel-perfect segmentation masks outlining environmental hazards. Oil spills spread irregularly due to ocean currents; TransUNet successfully maps these fluid shapes, directing cleanup crews precisely where containment booms are needed.
+
+### 3. Model Validation & Multi-Panel Analysis
+AI results must be verified by human experts to ensure the model isn't hallucinating due to radar noise (like a natural oil seep). The interface provides three mathematically synchronized viewports (Original SAR, AI Mask, Blended Overlay). Panning or zooming in one panel instantly updates the others, allowing rapid human validation.
+
+### 4. Interactive Annotations
+Users can dynamically view and interact with AI-generated bounding boxes. The system uses advanced coordinate math to map absolute image pixels to dynamic viewport coordinates, ensuring annotations scale flawlessly as the user zooms deeply into the image.
+
+### 5. Model Metrics, Datasets, and Training
+Our models were heavily trained on specialized maritime datasets:
+
+**🚢 Ship Detection Dataset (SARscope)**
+- **Total Data**: 5,719 SAR images containing 17,708 labeled ship instances.
+- **Sources**: Combines HRSID and OPEN-SSDD sources.
+- **Specifications**: 640×640 resolution, VV/VH polarizations.
+
+**🛢️ Oil Spill Detection Dataset**
+- **Total Data**: 8,070 total oil spill images (256×256 pixels).
+- **Sub-Dataset 1 (Palsar Dataset)**: 
+  - *Location*: Mexico Gulf oil spill area
+  - *Satellite*: ALOS PALSAR (L-band 1270 MHz, wavelength 23.62 cm)
+  - *Advantages*: Better penetration through weather
+  - *Split*: 3,101 Training images / 776 Test images
+- **Sub-Dataset 2 (Sentinel Dataset)**:
+  - *Location*: Persian Gulf oil spill area
+  - *Satellite*: Sentinel-1A (5.405 GHz)
+  - *Advantages*: Higher temporal resolution, free data access
+  - *Split*: 3,354 Training images / 839 Test images
+
+*(Check out the `research_papers/` folder in this repo for the complete academic math and metric evaluations behind these architectures).*
+
+---
+
+## 🚀 Deployment & Setup
 
 ### Prerequisites
-- Docker & Docker Compose
 - Node.js (v18+)
-- Python (v3.11+)
+- Python (v3.11+) + CUDA (if running locally via `dl_env`)
+- Docker Desktop (Optional, for containerized ML backend)
 - MongoDB 
 
 ### 1. Configuration
@@ -62,17 +71,28 @@ Securely configure your environment variables using the provided templates:
 cp sar-fe/.env.example sar-fe/.env
 cp sar_marine_backend/.env.example sar_marine_backend/.env
 ```
-*Note: Your `.env` files contain sensitive credentials and are safely ignored by git.*
+*(Your `.env` files contain sensitive credentials and are safely ignored by git).*
 
-### 2. ML Inference Engine (Docker)
-The Python ML service is containerized for cross-platform compatibility and seamless GPU allocation. It mounts a shared storage volume to exchange large `.tiff` uploads and `.dzi` outputs with the Node.js API.
+### 2. Start the Machine Learning Engine (Choose one method)
 
-```bash
-# Start the ML Backend with GPU acceleration (CUDA 12.1)
-docker run --gpus all -p 8000:8000 -v "${PWD}\sar_marine_backend\shared:/app/shared" maheshkiran/sar-model-backend
+#### Method A: Local GPU Execution via your custom `dl_env` (Recommended for Local Dev)
+If you have your local Python virtual environment (`dl_env`) pre-configured with PyTorch and CUDA:
+```cmd
+cd sar_marine_backend\model_server
+# Activate your environment
+conda activate dl_env
+# Start the server
+uvicorn app:app --port 8000
 ```
 
-### 3. API Gateway
+#### Method B: Containerized Execution (Docker)
+If you prefer not to manage local Python dependencies, use the pre-built Docker container:
+```cmd
+docker run --gpus all -p 8000:8000 -v "C:\Users\Mahesh Kiran\KMIT College\Trinetra\A_FINAL SAR\sar_marine_backend\shared:/app/shared" maheshkiran/sar-model-backend
+```
+*(⚠️ **CRITICAL**: If you run the Python backend via Docker, you MUST add `CALLBACK_URL=http://host.docker.internal:3000/api/detect/webhook` to your Node API's `.env` file so the Docker container can communicate back to your local Node server!)*
+
+### 3. Start the API Gateway
 Start the Node.js orchestration server:
 ```bash
 cd sar_marine_backend/server
@@ -80,7 +100,7 @@ npm install
 npm start
 ```
 
-### 4. Client Application
+### 4. Start the Client Application
 Start the frontend interface:
 ```bash
 cd sar-fe

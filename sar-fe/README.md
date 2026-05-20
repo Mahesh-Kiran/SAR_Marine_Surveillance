@@ -1,26 +1,40 @@
-# Client Interface
+# Client Interface — SAR Marine Surveillance
 
 This repository contains the frontend application for the SAR Marine Surveillance platform. Built with React and Vite, it serves as the primary dashboard for maritime operators to upload, analyze, and review gigapixel satellite imagery.
 
-## Real-Time Capabilities
+## 🛠 How It Works
 
-Standard web browsers cannot load 1GB+ TIFF images directly into memory without crashing. To solve this, the platform dynamically generates and streams **Deep Zoom Images (DZI)**. Using `OpenSeadragon`, the frontend fetches only the exact image tiles required for the user's current viewport and zoom level—identical to how modern digital mapping applications function.
+The frontend acts as the control room for the entire system. Instead of processing heavy AI loads directly, it relies on asynchronous communication with the backend Node.js API to orchestrate long-running machine learning jobs.
 
-## Key Features
+1. **Uploads**: Users upload massive `.tiff` files. The frontend securely pushes these to the Node.js gateway.
+2. **Asynchronous Polling**: Once an AI job (like Ship Detection) is triggered, the frontend intelligently polls the Node API for status updates (`Queued` → `Processing` → `Completed`) without freezing the user interface.
+3. **Data Retrieval**: Upon completion, the frontend requests the resulting `.dzi` files and geometric annotation data to display to the user.
 
-- **Context-Aware Workspaces**: Dedicated, isolated environments for Ship Detection and Oil Spill Detection. Uploads are strictly mapped to their respective AI pipelines to prevent data contamination.
-- **Synchronized Multi-Panel Analysis**: In critical scenarios like oil spill containment, operators must compare raw radar data against AI segmentations. The interface provides up to three side-by-side viewports (Original SAR, AI Mask, Blended Overlay) that are mathematically synchronized; panning or zooming in one panel instantly updates the others.
-- **Asynchronous Job Tracking**: The client maintains a lightweight polling mechanism with the Gateway API, providing operators with real-time feedback on AI inference jobs without requiring WebSocket overhead.
-- **Dynamic Coordinate Mapping**: AI-generated bounding boxes are dynamically translated from absolute image pixel coordinates into dynamic viewport coordinates, scaling flawlessly as the user zooms in on a target vessel.
+## 🖼 Image Processing (OpenSeadragon)
 
-## Technology Stack
+Standard web browsers cannot load 1GB+ TIFF images directly into memory without crashing. To solve this, the platform utilizes **Deep Zoom Image (DZI)** technology.
 
-- **Core**: React 18, Vite
-- **Styling**: TailwindCSS, shadcn/ui
-- **Image Processing Engine**: OpenSeadragon
-- **Authentication**: Firebase (Secure Identity Management)
+Using `OpenSeadragon`, the frontend does not load the full image. Instead, it fetches only the exact, pre-sliced 256x256 image tiles required for the user's current viewport and zoom level—identical to how modern digital mapping applications (like Google Maps) function. This allows operators to pan and zoom across gigapixel radar imagery with zero lag.
 
-## Local Development
+## ✏️ Annotations & Coordinate Mapping
+
+When the ML backend detects a ship, it returns an array of bounding boxes based on the **absolute pixel coordinates** of the original massive TIFF image. 
+
+The frontend uses advanced mathematical mapping to overlay these annotations onto the OpenSeadragon canvas. As the user zooms or pans:
+- The React component listens to OpenSeadragon's viewport events.
+- It dynamically recalculates the position of the bounding boxes from "Image Pixel Space" to "Web Viewport Space".
+- The annotations scale flawlessly in real-time, ensuring the bounding box tightly wraps the detected vessel regardless of the current zoom depth.
+
+## 🔍 Synchronized Multi-Panel Analysis
+
+In critical scenarios like oil spill containment, operators must compare raw radar data against AI segmentations. The interface provides up to three side-by-side viewports:
+1. **Original SAR Image**
+2. **AI Detection Mask**
+3. **Blended Red-Overlay**
+
+These three instances of OpenSeadragon are mathematically synchronized. Panning, rotating, or zooming in one panel instantly triggers a coordinate update in the other two, allowing rapid human validation of AI inferences.
+
+## 🚀 Local Development
 
 1. **Configure Environment:**
    ```bash
