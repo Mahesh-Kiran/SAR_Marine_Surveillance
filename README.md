@@ -1,14 +1,14 @@
-# SAR Marine Surveillance System 🌊🚢
+# SAR Marine Surveillance System
 
 > **The Problem:** Ocean pollution and maritime security are critical global challenges. Every day, illegal fishing vessels go untracked and oil spills devastate marine ecosystems. Manually scanning massive, gigapixel satellite images for these anomalies is like finding a needle in a haystack—it's slow, exhausting, and prone to human error. 
 > 
 > **The Solution:** What if AI could scan these vast oceans in seconds? That’s exactly what this project does. We built a deep learning platform that automatically analyzes high-resolution SAR (Synthetic Aperture Radar) satellite imagery to detect ships and outline oil spills instantly.
 
-This project is a comprehensive maritime surveillance platform built as a final year project by Team-12 (E. Shiva Prasad Reddy & C. Mahesh Kiran).
+This project is a comprehensive maritime surveillance platform designed to automate the analysis of satellite imagery.
 
 ---
 
-## 🏗 System Architecture
+## System Architecture
 
 ![SAR Marine Surveillance System Architecture](./Architecture.jpeg)
 
@@ -19,7 +19,7 @@ The system is designed across three highly decoupled layers to handle massive im
 
 ---
 
-## ✨ Key Features
+## Key Features
 
 - **Ship Detection**: Powered by **Deformable DETR** with a ResNet-50 backbone. By using deformable self-attention, the model focuses only on key sampling points instead of the whole image, delivering highly accurate bounding boxes even in complex sea clutter.
 - **Oil Spill Detection**: Powered by **TransUNet**, merging the spatial feature extraction of a U-Net (CNN) with the long-range global context of a Transformer. It outputs precise pixel-level segmentation masks of irregular oil spills.
@@ -29,7 +29,7 @@ The system is designed across three highly decoupled layers to handle massive im
 
 ---
 
-## 📊 Datasets & Model Details
+## Datasets & Model Details
 
 As detailed in our research, the models were trained on specialized SAR maritime datasets:
 
@@ -48,7 +48,7 @@ As detailed in our research, the models were trained on specialized SAR maritime
 
 ---
 
-## 🚀 Getting Started
+## Getting Started
 
 ### Prerequisites
 - Docker Desktop
@@ -101,6 +101,3 @@ npm run dev
 ```
 
 Visit `http://localhost:5173` to start scanning the oceans!
-
----
-*Developed by Team-12 — E. Shiva Prasad Reddy & C. Mahesh Kiran, KMIT*

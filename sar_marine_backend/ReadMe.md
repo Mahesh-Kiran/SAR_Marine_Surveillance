@@ -1,8 +1,8 @@
-# SAR Marine Surveillance — Backend & ML 🧠
+# SAR Marine Surveillance — Backend & ML
 
 This folder contains the heavy lifting of the SAR Marine Surveillance platform. It is split into two distinct services that work together to keep the system fast and responsive.
 
-## 🏗 The Two-Part Architecture
+## The Two-Part Architecture
 
 ### 1. Node.js API Server (`/server`)
 AI models are resource-heavy and slow. If the frontend talked directly to the Python ML server, the server would quickly get overwhelmed by authentication checks, database queries, and large file uploads. 
@@ -21,7 +21,7 @@ Written in **FastAPI**, this is a pure number-crunching microservice. It:
 - Runs **TransUNet** for Oil Spill Segmentation.
 - Generates a custom red-overlay blend combining the original SAR image with the segmentation mask.
 
-## 🚀 Setup & Run
+## Setup & Run
 
 ### 1. Start the Node.js Server
 Requires MongoDB running locally or a MongoDB Atlas URI.
@@ -54,6 +54,3 @@ pip install -r requirements.txt
 uvicorn app:app --port 8000 --reload
 ```
 *(Warning: Installing `pyvips` on Windows natively can be extremely difficult. Use Docker!)*
-
----
-*Developed by Team-12 — E. Shiva Prasad Reddy & C. Mahesh Kiran, KMIT*
