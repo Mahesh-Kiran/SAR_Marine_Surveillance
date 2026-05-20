@@ -19,8 +19,12 @@ const useAnnotationSync = (viewer, viewerId) => {
       }
     });
     
-    // Connect WebSocket
-    wsRef.current = new WebSocket('ws://localhost:8000/ws/annotations');
+    // Connect WebSocket - dynamically resolve based on current host
+    const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsHost = import.meta.env.VITE_API_BASE_URL 
+      ? import.meta.env.VITE_API_BASE_URL.replace(/^https?:/, wsProtocol)
+      : `${wsProtocol}//${window.location.hostname}:8000`;
+    wsRef.current = new WebSocket(`${wsHost}/ws/annotations`);
     
     wsRef.current.onopen = () => {
       console.log('WebSocket connected');

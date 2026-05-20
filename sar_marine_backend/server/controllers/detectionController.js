@@ -153,3 +153,33 @@ exports.getShipDetections = async (req, res) => {
     res.status(500).json({ error: 'Internal server error' });
   }
 };
+
+// ── Generate Detection Overlay ─────────────────────────────────────────────
+// Proxies to Python: POST /api/generate_overlay/oilspill/{imageId}
+// Python blends the SAR TIFF + detection mask → red overlay PNG → DZI tiles
+exports.generateOverlay = async (req, res) => {
+  const { imageId } = req.params;
+
+  if (!imageId) {
+    return res.status(400).json({ error: 'imageId is required' });
+  }
+
+  try {
+    const response = await axios.post(
+      `${PYTHON_API_BASE}/api/generate_overlay/oilspill/${imageId}`
+    );
+
+    const { overlay_url } = response.data;
+    return res.status(200).json({
+      message: 'Overlay generated successfully',
+      overlayUrl: overlay_url,        // e.g. /outputs/oilspill/{id}/{id}_overlay.dzi
+    });
+  } catch (err) {
+    const detail = err.response?.data?.detail || err.message;
+    console.error('Overlay generation error:', detail);
+    return res.status(err.response?.status || 500).json({
+      error: 'Failed to generate overlay',
+      detail,
+    });
+  }
+};

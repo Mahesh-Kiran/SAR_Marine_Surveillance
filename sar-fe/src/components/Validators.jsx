@@ -2,6 +2,8 @@ import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { Satellite, LogOut, CheckCheck, Droplet, Ship } from 'lucide-react';
 import { useState, useEffect } from 'react';
+
+const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -21,7 +23,7 @@ const ValidatorPage = () => {
   useEffect(() => {
     const checkPhoneAuth = async () => {
       try {
-        const response = await fetch('http://localhost:3000/api/auth/status', {
+        const response = await fetch(`${API_BASE}/api/auth/status`, {
           credentials: 'include'
         });
 
@@ -53,7 +55,7 @@ const ValidatorPage = () => {
     try {
       if (authType === 'firebase') await logout();
       else if (authType === 'phone')
-        await fetch('http://localhost:3000/api/auth/logout', {
+        await fetch(`${API_BASE}/api/auth/logout`, {
           method: 'POST',
           credentials: 'include'
         });

@@ -11,4 +11,7 @@ router.post('/:type/:imageId', detectionController.runDetection);
 router.post('/webhook', detectionController.receiveWebhook);
 router.get('/ship/:imageId', detectionController.getShipDetections);
 
+// Generate detection overlay (SAR + mask → red-tinted overlay DZI)
+router.post('/overlay/oilspill/:imageId', detectionController.generateOverlay);
+
 module.exports = router;

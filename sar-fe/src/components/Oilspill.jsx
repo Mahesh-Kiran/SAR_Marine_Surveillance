@@ -10,6 +10,8 @@ import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Upload, FileImage, Loader2, Play, Info, Droplet, AlertCircle } from 'lucide-react';
 
+const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
+
 const AdvancedOilSpillViewer = () => {
   const navigate = useNavigate();
   const [imageMode, setImageMode] = useState(null);
@@ -18,6 +20,7 @@ const AdvancedOilSpillViewer = () => {
   const [selectedDzi, setSelectedDzi] = useState(null);
   const [imageId, setImageId] = useState(null);
   const [detectionResult, setDetectionResult] = useState(null);
+  const [overlayDziUrl, setOverlayDziUrl] = useState(null);  // /outputs/oilspill/{id}/{id}_overlay.dzi
   const [loading, setLoading] = useState(false);
   const [statusMsg, setStatusMsg] = useState("");
   const [viewerError, setViewerError] = useState(null);
@@ -58,7 +61,7 @@ const AdvancedOilSpillViewer = () => {
   const fetchBackendImages = async () => {
     setIsLoadingList(true);
     try {
-      const res = await fetch("http://localhost:3000/api/dzi/oilspill");
+      const res = await fetch(`${API_BASE}/api/dzi/oilspill`);
       if (res.ok) {
         const data = await res.json();
         if (data?.length > 0) {
@@ -166,117 +169,89 @@ const AdvancedOilSpillViewer = () => {
   };
 
   const initializeBackendViewers = async (imgId) => {
-    const baseUrl = "http://localhost:3000";
-    
+    const baseUrl = API_BASE;
+
     try {
-      // Fetch detection outputs to check if mask exists
+      // Fetch detection outputs to check if mask DZI exists
       const res = await fetch(`${baseUrl}/api/images/outputs/oilspill`);
-      
+
       if (res.ok) {
         const data = await res.json();
         const outputsList = data.items || [];
-        
-        // Find output by matching imageId in the dziFile name
-        const imageOutput = outputsList.find(item => 
+
+        // Find the mask DZI output for this imageId
+        const imageOutput = outputsList.find(item =>
           item.dziFile && item.dziFile.includes(imgId)
         );
-        
+
+        const originalDzi = `/tiles/oilspill/${imgId}.dzi`;
+
         if (imageOutput) {
           setDetectionResult(imageOutput);
-          
-          // Construct URLs based on API response structure
-          const originalDzi = `/tiles/oilspill/${imgId}.dzi`;
-          const maskDzi = `/outputs/oilspill/${imageOutput.dziFile}`;
-          
-          console.log("Loading DZIs:", {
-            original: originalDzi,
-            mask: maskDzi,
-            dziFile: imageOutput.dziFile
-          });
-          
+
+          const maskDzi    = `/outputs/oilspill/${imageOutput.dziFile}`;
+          // Overlay DZI is at the oilspill outputs root (not in a subdirectory)
+          // pyvips dzsave("{id}_overlay") → "{id}_overlay.dzi"
+          const overlayDzi = `/outputs/oilspill/${imgId}_overlay.dzi`;
+
+          // Prefer the pre-generated overlay; fall back to the mask so viewer 3
+          // is never blank while waiting for overlay generation.
+          const overlaySource = overlayDziUrl || overlayDzi;
+
+          console.log("Loading DZIs:", { original: originalDzi, mask: maskDzi, overlay: overlaySource });
+
           const leftViewer = OpenSeadragon({
             id: "osd-viewer-left",
             prefixUrl: "https://openseadragon.github.io/openseadragon/images/",
             tileSources: `${baseUrl}${originalDzi}`,
-            showNavigator: true,
-            navigatorSizeRatio: 0.15,
-            visibilityRatio: 1,
-            minZoomLevel: 0.1,
-            maxZoomLevel: 20,
+            showNavigator: true, navigatorSizeRatio: 0.15,
+            visibilityRatio: 1, minZoomLevel: 0.1, maxZoomLevel: 20,
           });
 
           const centerViewer = OpenSeadragon({
             id: "osd-viewer-center",
             prefixUrl: "https://openseadragon.github.io/openseadragon/images/",
             tileSources: `${baseUrl}${maskDzi}`,
-            showNavigator: true,
-            navigatorSizeRatio: 0.15,
-            visibilityRatio: 1,
-            minZoomLevel: 0.1,
-            maxZoomLevel: 20,
+            showNavigator: true, navigatorSizeRatio: 0.15,
+            visibilityRatio: 1, minZoomLevel: 0.1, maxZoomLevel: 20,
           });
 
           const rightViewer = OpenSeadragon({
             id: "osd-viewer-right",
             prefixUrl: "https://openseadragon.github.io/openseadragon/images/",
-            tileSources: `${baseUrl}${maskDzi}`,
-            showNavigator: true,
-            navigatorSizeRatio: 0.15,
-            visibilityRatio: 1,
-            minZoomLevel: 0.1,
-            maxZoomLevel: 20,
+            tileSources: `${baseUrl}${overlaySource}`,
+            showNavigator: true, navigatorSizeRatio: 0.15,
+            visibilityRatio: 1, minZoomLevel: 0.1, maxZoomLevel: 20,
           });
 
-          osdLeftRef.current = leftViewer;
+          osdLeftRef.current   = leftViewer;
           osdCenterRef.current = centerViewer;
-          osdRightRef.current = rightViewer;
+          osdRightRef.current  = rightViewer;
 
           setupViewportSync([leftViewer, centerViewer, rightViewer]);
           setStatusMsg("Detection results loaded successfully");
         } else {
-          // No detection results - show original only
+          // No detection results yet — show original in all 3 panels
           setDetectionResult(null);
-          const originalDzi = `/tiles/oilspill/${imgId}.dzi`;
-          
-          const leftViewer = OpenSeadragon({
-            id: "osd-viewer-left",
+
+          const makeViewer = (id) => OpenSeadragon({
+            id,
             prefixUrl: "https://openseadragon.github.io/openseadragon/images/",
             tileSources: `${baseUrl}${originalDzi}`,
-            showNavigator: true,
-            navigatorSizeRatio: 0.15,
-            visibilityRatio: 1,
-            minZoomLevel: 0.1,
-            maxZoomLevel: 20,
+            showNavigator: true, navigatorSizeRatio: 0.15,
+            visibilityRatio: 1, minZoomLevel: 0.1, maxZoomLevel: 20,
           });
 
-          const placeholderViewer1 = OpenSeadragon({
-            id: "osd-viewer-center",
-            prefixUrl: "https://openseadragon.github.io/openseadragon/images/",
-            tileSources: `${baseUrl}${originalDzi}`,
-            showNavigator: true,
-            navigatorSizeRatio: 0.15,
-            visibilityRatio: 1,
-            minZoomLevel: 0.1,
-            maxZoomLevel: 20,
-          });
+          const lv = makeViewer("osd-viewer-left");
+          const cv = makeViewer("osd-viewer-center");
+          const rv = makeViewer("osd-viewer-right");
 
-          const placeholderViewer2 = OpenSeadragon({
-            id: "osd-viewer-right",
-            prefixUrl: "https://openseadragon.github.io/openseadragon/images/",
-            tileSources: `${baseUrl}${originalDzi}`,
-            showNavigator: true,
-            navigatorSizeRatio: 0.15,
-            visibilityRatio: 1,
-            minZoomLevel: 0.1,
-            maxZoomLevel: 20,
-          });
+          osdLeftRef.current   = lv;
+          osdCenterRef.current = cv;
+          osdRightRef.current  = rv;
 
-          osdLeftRef.current = leftViewer;
-          osdCenterRef.current = placeholderViewer1;
-          osdRightRef.current = placeholderViewer2;
-
-          setupViewportSync([leftViewer, placeholderViewer1, placeholderViewer2]);
-          setStatusMsg("No detection results found. Run detection to generate masks.");
+          setupViewportSync([lv, cv, rv]);
+          setStatusMsg("No detection results found. Run detection to generate mask & overlay.");
         }
       } else {
         throw new Error('Failed to fetch outputs');
@@ -338,37 +313,71 @@ const AdvancedOilSpillViewer = () => {
     });
   };
 
+  // ── Generate detection overlay (SAR + mask → red overlay DZI) ───────────
+  const generateOverlay = async (imgId) => {
+    try {
+      setStatusMsg("Generating detection overlay...");
+      // URL-encode imageId so spaces/special chars are handled correctly
+      const encodedId = encodeURIComponent(imgId);
+      const res = await fetch(`${API_BASE}/api/detect/overlay/oilspill/${encodedId}`, {
+        method: "POST",
+      });
+      const data = await res.json();
+
+      if (res.ok && data.overlayUrl) {
+        setOverlayDziUrl(data.overlayUrl);
+        setStatusMsg("Overlay ready! Reloading viewers...");
+        return data.overlayUrl;
+      } else {
+        console.warn("Overlay generation failed:", data.error || data.detail);
+        setStatusMsg("Detection complete (overlay generation failed)");
+        return null;
+      }
+    } catch (err) {
+      console.error("Overlay error:", err);
+      setStatusMsg("Detection complete (overlay generation error)");
+      return null;
+    }
+  };
+
   const startDetection = async () => {
     if (!imageId) return;
     setLoading(true);
     setStatusMsg("Starting oil spill detection...");
-    
+
     try {
-      const res = await fetch(`http://localhost:3000/api/detect/oilspill/${imageId}`, { 
-        method: "POST" 
+      // URL-encode imageId to handle spaces and special characters
+      const encodedId = encodeURIComponent(imageId);
+      const res = await fetch(`${API_BASE}/api/detect/oilspill/${encodedId}`, {
+        method: "POST",
       });
       const data = await res.json();
-      
+
       if (res.ok && data.accepted) {
         const jobId = data.jobId;
-        setStatusMsg(`Detection job started. Polling for results...`);
-        
+        setStatusMsg("Detection job started. Polling for results...");
+
         const interval = setInterval(async () => {
           try {
-            const statusRes = await fetch(`http://localhost:3000/api/detect/status/${jobId}`);
+            const statusRes = await fetch(`${API_BASE}/api/detect/status/${jobId}`);
             const statusData = await statusRes.json();
-            
+
             if (statusData.status === 'completed') {
               clearInterval(interval);
-              setStatusMsg("Detection completed! Reloading results...");
-              setLoading(false);
+              setStatusMsg("Detection completed! Generating overlay...");
+
+              // ── Auto-generate the red detection overlay ──────────────────
+              await generateOverlay(imageId);
+
+              // ── Force re-initialize viewers with new results ─────────────
               setTimeout(() => {
-                // Force re-initialization
                 setSelectedDzi(null);
                 setTimeout(() => {
                   setSelectedDzi(`/tiles/oilspill/${imageId}.dzi`);
                 }, 100);
-              }, 1000);
+              }, 500);
+
+              setLoading(false);
             } else if (statusData.status === 'failed') {
               clearInterval(interval);
               setStatusMsg(`Detection failed: ${statusData.error || 'Unknown error'}`);
@@ -380,7 +389,7 @@ const AdvancedOilSpillViewer = () => {
             console.error("Error polling job status:", pollErr);
           }
         }, 3000);
-        
+
         setPollInterval(interval);
       } else {
         setStatusMsg(`Failed: ${data.error || data.message || "Unknown error"}`);
@@ -397,6 +406,7 @@ const AdvancedOilSpillViewer = () => {
     const imgId = dziPath.split("/").pop().replace(".dzi", "");
     setSelectedDzi(dziPath);
     setImageId(imgId);
+    setOverlayDziUrl(null);   // reset overlay so it's re-fetched for new image
     setStatusMsg("Loading image...");
   };
 
@@ -415,7 +425,7 @@ const AdvancedOilSpillViewer = () => {
             <div className="grid md:grid-cols-2 gap-4">
               <Card 
                 className="cursor-pointer hover:border-primary transition-colors" 
-                onClick={() => navigate('/upload')}
+                onClick={() => navigate('/upload/oilspill')}
               >
                 <CardContent className="pt-6">
                   <div className="flex items-center gap-4">
@@ -624,7 +634,12 @@ const AdvancedOilSpillViewer = () => {
                 </div>
                 
                 <div className="space-y-2">
-                  <Label className="text-sm font-medium">Detection Overlay</Label>
+                  <Label className="text-sm font-medium">
+                    Detection Overlay
+                    {overlayDziUrl && (
+                      <span className="ml-2 text-xs font-normal text-green-500">● live</span>
+                    )}
+                  </Label>
                   <div 
                     id="osd-viewer-right" 
                     className="w-full h-[70vh] bg-black rounded-md border" 

@@ -8,6 +8,8 @@ import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import ThemeToggleButton from '@/components/ui/theme-toggle-button';
 
+const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
+
 const Dashboard = () => {
   const { currentUser, logout } = useAuth();
   const [phoneUser, setPhoneUser] = useState(null);
@@ -18,7 +20,7 @@ const Dashboard = () => {
   useEffect(() => {
     const checkPhoneAuth = async () => {
       try {
-        const response = await fetch('http://localhost:3000/api/auth/status', {
+        const response = await fetch(`${API_BASE}/api/auth/status`, {
           credentials: 'include'
         });
 
@@ -50,7 +52,7 @@ const Dashboard = () => {
     try {
       if (authType === 'firebase') await logout();
       else if (authType === 'phone')
-        await fetch('http://localhost:3000/api/auth/logout', {
+        await fetch(`${API_BASE}/api/auth/logout`, {
           method: 'POST',
           credentials: 'include'
         });

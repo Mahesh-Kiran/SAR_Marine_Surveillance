@@ -1,0 +1,92 @@
+ Project Title – SAR Marine Surveillance: Marine Surveillance for Maritime objects and oil spills using GenAI 
+E. SHIVA PRASAD REDDY
+C. MAHESH KIRAN 
+23BD1A0526
+24BD5A0509
+Mentor
+ Mr. C. SUNDEEP BABU
+Team
+INTRODUCTION
+Target Audience
+1.Maritime surveillance agencies 2.Environmental monitoring teams 3.Research and academic institutions 4.Coast guard / security authorities
+Project Scope
+1.Detect ships and identify oil spills using SAR satellite imagery.
+2.Use AI models (Deformable DETR & TransUNet) for automated detection and segmentation. 3.Visualize very large SAR images using DeepZoom and allow result review through overlays. 4.Provide secure multi-user access with authentication.
+Introduction
+This platform performs automated maritime surveillance on SAR images.
+ It detects ships and oil spills using deep learning models and visualizes results on an interactive DeepZoom viewer. The goal is to reduce manual image scanning and support faster decision-making.
+WORKFLOW
+The system follows a client-server architecture where users interact through a React frontend with Firebase authentication. Uploaded SAR images are sent to the FastAPI backend, where they are tiled into Deep Zoom Images (DZI) and processed through two ML models — Deformable DETR for ship detection and TransUNet for oil-spill segmentation. The resulting detections are stored in MongoDB and retrieved back to the React viewer, where OpenSeadragon overlays the bounding boxes/masks on the high-resolution image.
+TECH STACK
+Frontend
+AI Models
+Backend
+Integrations
+React
+Pytorch
+Openseadragon
+Python
+Numpy
+Tailwind
+FastAPI
+Colab
+Git
+PyVIPS
+Vercel
+MongDB
+
+
+
+
+
+
+
+
+
+
+DATASET DESCRIPTION
+1.SHIP DETECTION
+2.OIL SPILL DETECTION
+A combined SAR maritime dataset created using HRSID and OPEN-SSDD.
+Contains 6,735 images with 17,708 labeled ships (instance annotations).
+Images are resized to 640×640 for faster training and inference.
+Supports bounding box + instance segmentation, formatted in COCO for ML compatibility. Balanced 70-20-10 train/val/test split for fair evaluation.
+Contains SAR imagery focused on oil spill detection and segmentation.
+Images from multiple satellites (ALOS, Sentinel-1A) covering real spill incidents. Includes pixel-level segmentation masks, ideal for TransUNet training.
+Dataset includes data augmentation (cropping, rotation, noise) for robustness. Also follows a balanced train/validation split for reliable benchmarking.
+DATA PREPROCESSING
+large scale SAR image
+Predictions
+Tiling
+Tile vise model processing
+VIPS
+tiles
+ARCHITECTURE
+→ → → 
+DEFORMABLE DETR
+Deformable DETR uses ResNet-50 as its backbone to extract feature maps from the SAR image.
+ 
+ 
+ Finally, the model outputs accurate bounding boxes and class predictions for detected ships.
+The encoder applies deformable self-attention, focusing only on a few key sampling points instead of the whole image. The decoder uses deformable cross-attention to refine object queries against selected feature locations.
+ARCHITECTURE
+ 
+→ → → → 
+TRANSUNET
+TransUNet combines U-Net (CNN) with a Transformer encoder for medical/segmentation tasks.
+The CNN encoder extracts low-level spatial features, and the Transformer captures long-range global context. These features are passed into a U-Net decoder that performs upsampling with skip connections.
+The final output is a precise segmentation mask, making it ideal for pixel-accurate oil spill detection.
+Model OUTPUTS
+OUTPUTS
+Ship Detection Viewer
+Oil Spill Detection Viewer
+OUTPUTS
+Ship Annotation Workspace
+Oil Spill Annotation Workspace
+OUTPUTS
+Ship Validation
+Oil Spill Validation
+CONCLUSION
+The Deep SAR Monitor System successfully automates ship detection and oil spill segmentation from high-resolution SAR satellite imagery. By integrating Deformable DETR for object detection and TransUNet for segmentation, the platform achieves accurate identification of maritime activities and environmental hazards. With FastAPI backend, MongoDB storage, and a DeepZoom-based React interface, users can visualize and inspect gigapixel satellite images in real time.
+ This system reduces manual analysis effort, improves decision-making speed, and demonstrates how AI can enhance maritime safety, environmental monitoring, and remote sensing workflows.
+THANK YOU

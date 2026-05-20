@@ -7,7 +7,6 @@ import SignUpPage from './components/SignUp';
 import PhoneAuthPage from './components/PhoneAuthPage';
 import Dashboard from './components/Dashboard';
 import LandingPage from './components/LandingPage';
-import TestAuth from './components/TestAuth';
 import SarLoader from './components/SARLoader';
 import ImageUploadPage from './components/ImageUploadingPage';
 import SarFooter from './components/Footer';
@@ -22,6 +21,8 @@ import ShipAnnotationPage from './components/ShipAnnotation';
 import AdvancedOilSpillViewer from './components/Oilspill';
 import OilSpillAnnotationPage from './components/OilSpillAnnotation';
 
+const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
+
 function AppContent() {
   const { currentUser, loading } = useAuth();
   const [phoneAuth, setPhoneAuth] = useState(false);
@@ -31,7 +32,7 @@ function AppContent() {
   useEffect(() => {
     const checkPhoneAuth = async () => {
       try {
-        const response = await fetch('http://localhost:3000/api/auth/status', {
+        const response = await fetch(`${API_BASE}/api/auth/status`, {
           credentials: 'include'
         });
         if (response.ok) {
@@ -175,16 +176,11 @@ function AppContent() {
 
 
 
-          {/* Utility Routes */}
-          <Route
-            path="/test"
-            element={<TestAuth />}
-          />
-
-          <Route
-            path="/upload"
-            element={<ImageUploadPage />}
-          />
+          {/* Upload Routes — type-specific so each viewer links to its own upload page */}
+          <Route path="/upload/ship" element={<ImageUploadPage defaultType="ship" />} />
+          <Route path="/upload/oilspill" element={<ImageUploadPage defaultType="oilspill" />} />
+          {/* Generic fallback upload (defaults to ship) */}
+          <Route path="/upload" element={<ImageUploadPage defaultType="ship" />} />
 
           {/* Landing Page */}
           <Route

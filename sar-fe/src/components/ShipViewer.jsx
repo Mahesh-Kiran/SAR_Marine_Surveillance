@@ -11,6 +11,8 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Upload, Image as ImageIcon, Loader2, Play, Info, Ship, RefreshCw } from 'lucide-react';
 import sampledetections from '../detections.json';
 
+const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
+
 const ShipViewer = () => {
   const navigate = useNavigate();
   const [imageMode, setImageMode] = useState(null);
@@ -42,7 +44,7 @@ const ShipViewer = () => {
   const fetchBackendImages = async () => {
     setIsLoadingList(true);
     try {
-      const res = await fetch("http://localhost:3000/api/dzi/ship");
+      const res = await fetch(`${API_BASE}/api/dzi/ship`);
       if (res.ok) {
         const data = await res.json();
         if (data?.length > 0) {
@@ -69,7 +71,7 @@ const ShipViewer = () => {
   const loadDetections = async (imgId) => {
     try {
       setStatusMsg("Loading detections...");
-      const res = await fetch(`http://localhost:3000/api/detect/ship/${imgId}`);
+      const res = await fetch(`${API_BASE}/api/detect/ship/${imgId}`);
       
       if (res.status === 404) {
         setDetections([]);
@@ -144,7 +146,7 @@ const ShipViewer = () => {
       viewerRightRef.current = null;
     }
 
-    const dziSource = imageMode === 'sample' ? selectedDzi : `http://localhost:3000${selectedDzi}`;
+    const dziSource = imageMode === 'sample' ? selectedDzi : `${API_BASE}${selectedDzi}`;
 
     try {
       const leftViewer = OpenSeadragon({
@@ -259,7 +261,7 @@ const ShipViewer = () => {
     setStatusMsg("Starting ship detection...");
     
     try {
-      const res = await fetch(`http://localhost:3000/api/detect/ship/${imageId}`, { 
+      const res = await fetch(`${API_BASE}/api/detect/ship/${imageId}`, { 
         method: "POST" 
       });
       const data = await res.json();
@@ -270,7 +272,7 @@ const ShipViewer = () => {
         
         const interval = setInterval(async () => {
           try {
-            const statusRes = await fetch(`http://localhost:3000/api/detect/status/${jobId}`);
+            const statusRes = await fetch(`${API_BASE}/api/detect/status/${jobId}`);
             const statusData = await statusRes.json();
             
             if (statusData.status === 'completed') {
@@ -335,7 +337,7 @@ const ShipViewer = () => {
             <div className="grid md:grid-cols-2 gap-4">
               <Card 
                 className="cursor-pointer hover:border-primary transition-colors" 
-                onClick={() => navigate('/upload')}
+                onClick={() => navigate('/upload/ship')}
               >
                 <CardContent className="pt-6">
                   <div className="flex items-center gap-4">

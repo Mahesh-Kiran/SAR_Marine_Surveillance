@@ -7,3 +7,4 @@ __pycache__
 shared/uploads/*
 shared/tiles/*
 shared/outputs/*
+output_dzi

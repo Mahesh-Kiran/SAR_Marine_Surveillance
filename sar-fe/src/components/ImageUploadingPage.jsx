@@ -14,14 +14,17 @@ import {
 } from '@/components/ui/select';
 
 const imageTypes = ['ship', 'oilspill'];
-const BASE_URL = 'http://localhost:3000';
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 
-const ImageProcessingPage = () => {
+const ImageProcessingPage = ({ defaultType }) => {
   const [selectedFiles, setSelectedFiles] = useState([]);
-  const [selectedType, setSelectedType] = useState('ship');
+  // Lock to the type passed via route (ship | oilspill); fall back to 'ship'
+  const [selectedType, setSelectedType] = useState(defaultType || 'ship');
   const [listedImages, setListedImages] = useState([]);
   const [status, setStatus] = useState({ message: '', type: '' });
   const [processing, setProcessing] = useState(false);
+  // Whether the caller locked the type (hides the selector)
+  const typeIsLocked = Boolean(defaultType);
 
   // Handle file selection
   const handleFileChange = (e) => {
@@ -108,7 +111,7 @@ const ImageProcessingPage = () => {
 
       if (!res.ok) throw new Error(data.error || 'Failed to generate DZI');
 
-      const dziUrl = data.dzi_url ? `${BASE_URL}${data.dzi_url}` : 'DZI URL not provided';
+      const dziUrl = (data.dzi_url || data.dziUrl) ? `${BASE_URL}${data.dzi_url || data.dziUrl}` : 'DZI URL not provided';
       setStatus({ message: `DZI generated: ${dziUrl}`, type: 'success' });
     } catch (err) {
       console.error(err);
@@ -141,21 +144,31 @@ const ImageProcessingPage = () => {
         {/* Main Form */}
         <Card>
           <CardContent className="p-6 space-y-6">
-            {/* Detection Type Selection */}
-            <div className="space-y-3">
-              <Label htmlFor="type-select" className="text-sm font-semibold">
-                Select Detection Type
-              </Label>
-              <Select value={selectedType} onValueChange={setSelectedType} disabled={processing}>
-                <SelectTrigger id="type-select">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ship">Ship Detection</SelectItem>
-                  <SelectItem value="oilspill">Oil Spill Detection</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+            {/* Detection Type Selection — hidden when page is reached from a typed route */}
+            {!typeIsLocked && (
+              <div className="space-y-3">
+                <Label htmlFor="type-select" className="text-sm font-semibold">
+                  Select Detection Type
+                </Label>
+                <Select value={selectedType} onValueChange={setSelectedType} disabled={processing}>
+                  <SelectTrigger id="type-select">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ship">Ship Detection</SelectItem>
+                    <SelectItem value="oilspill">Oil Spill Detection</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+            {typeIsLocked && (
+              <div className="flex items-center gap-2">
+                <Label className="text-sm font-semibold">Detection Type:</Label>
+                <span className="text-sm font-medium capitalize px-2 py-0.5 rounded bg-primary/10 text-primary">
+                  {selectedType === 'oilspill' ? 'Oil Spill' : 'Ship'}
+                </span>
+              </div>
+            )}
 
             {/* File Upload Zone */}
             <div className="space-y-3">

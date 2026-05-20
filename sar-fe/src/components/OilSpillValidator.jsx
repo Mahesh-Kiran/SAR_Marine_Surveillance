@@ -9,7 +9,7 @@ import { AlertCircle, Upload, Image as ImageIcon, Grid3x3, RotateCcw, Home, Load
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 
-const API_BASE = 'http://localhost:3000';
+const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
 
 const OilSpillValidator = () => {
   const viewerRef = useRef(null);

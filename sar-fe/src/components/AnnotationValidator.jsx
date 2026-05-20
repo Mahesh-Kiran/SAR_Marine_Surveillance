@@ -11,7 +11,7 @@ import { Input } from '@/components/ui/input';
 import { AlertCircle, Upload, Image as ImageIcon, Grid3x3, RotateCcw, Home, Loader2 } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
-const API_BASE = 'http://localhost:3000';
+const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
 
 const ShipValidator = () => {
   const viewerRef = useRef(null);
