@@ -1,39 +1,36 @@
-# SAR Marine Surveillance — Frontend
+# Client Interface
 
-This is the interactive UI for the SAR Marine Surveillance platform. When you're dealing with gigapixel satellite images (often over 1GB in size), standard HTML `<img>` tags will instantly crash your browser's memory. 
+This repository contains the frontend application for the SAR Marine Surveillance platform. Built with React and Vite, it serves as the primary dashboard for maritime operators to upload, analyze, and review gigapixel satellite imagery.
 
-To solve this, our frontend uses **OpenSeadragon** to render images exactly like Google Maps does—fetching only the small, specific `.dzi` (Deep Zoom Image) tiles for the exact area and zoom level you're looking at.
+## Real-Time Capabilities
 
-## What makes this frontend special?
+Standard web browsers cannot load 1GB+ TIFF images directly into memory without crashing. To solve this, the platform dynamically generates and streams **Deep Zoom Images (DZI)**. Using `OpenSeadragon`, the frontend fetches only the exact image tiles required for the user's current viewport and zoom level—identical to how modern digital mapping applications function.
 
-- **Type-Aware Uploads**: Click "Upload" from the Ship Viewer, and you're locked into Ship Detection. Click it from the Oil Spill Viewer, and you're locked into Oil Spills. No confusion.
-- **Synchronized Viewports**: Our Oil Spill viewer features three side-by-side canvases (Original, Mask, and Red Overlay). When you pan or zoom on one, the other two follow along flawlessly.
-- **Real-Time Polling**: AI inference takes time. The frontend polls the Node.js backend every 3 seconds to show you live job progress (Queued -> Processing -> Completed).
-- **Interactive Annotations**: Ship bounding boxes are drawn dynamically on top of the DeepZoom canvas using coordinate math to map pixel space to viewport space.
+## Key Features
 
-## Tech Stack
-- **React 18** with **Vite** (Lightning fast HMR)
-- **TailwindCSS** + **shadcn/ui** (Clean, modern components)
-- **OpenSeadragon** (Gigapixel rendering)
-- **Firebase Auth** (Phone & Google Sign-In)
-- **React Router DOM** (Client-side routing)
+- **Context-Aware Workspaces**: Dedicated, isolated environments for Ship Detection and Oil Spill Detection. Uploads are strictly mapped to their respective AI pipelines to prevent data contamination.
+- **Synchronized Multi-Panel Analysis**: In critical scenarios like oil spill containment, operators must compare raw radar data against AI segmentations. The interface provides up to three side-by-side viewports (Original SAR, AI Mask, Blended Overlay) that are mathematically synchronized; panning or zooming in one panel instantly updates the others.
+- **Asynchronous Job Tracking**: The client maintains a lightweight polling mechanism with the Gateway API, providing operators with real-time feedback on AI inference jobs without requiring WebSocket overhead.
+- **Dynamic Coordinate Mapping**: AI-generated bounding boxes are dynamically translated from absolute image pixel coordinates into dynamic viewport coordinates, scaling flawlessly as the user zooms in on a target vessel.
 
-## Setup & Run
+## Technology Stack
 
-### 1. Environment Setup
+- **Core**: React 18, Vite
+- **Styling**: TailwindCSS, shadcn/ui
+- **Image Processing Engine**: OpenSeadragon
+- **Authentication**: Firebase (Secure Identity Management)
 
-We've provided a template so you know exactly what keys you need:
-```bash
-cp .env.example .env
-```
-Fill in `.env` with your Firebase project credentials. By default, it looks for the Node.js API on `http://localhost:3000`.
+## Local Development
 
-### 2. Start the Dev Server
+1. **Configure Environment:**
+   ```bash
+   cp .env.example .env
+   ```
+   Provide your specific Firebase credentials and API endpoints inside `.env`.
 
-```bash
-npm install
-npm run dev
-```
-Open `http://localhost:5173`. 
-
-*(Note: To actually run detections, you must also be running the Node.js backend and the Python ML Docker container. See the [root README](../README.md) for the full stack startup guide).*
+2. **Run the Application:**
+   ```bash
+   npm install
+   npm run dev
+   ```
+   The application will be available at `http://localhost:5173`.
