@@ -181,7 +181,7 @@ const AdvancedOilSpillViewer = () => {
 
         // Find the mask DZI output for this imageId
         const imageOutput = outputsList.find(item =>
-          item.dziFile && item.dziFile.includes(imgId)
+          item.dziFile && item.dziFile.includes(`${imgId}_files.dzi`)
         );
 
         const originalDzi = `/tiles/oilspill/${imgId}.dzi`;
@@ -190,13 +190,11 @@ const AdvancedOilSpillViewer = () => {
           setDetectionResult(imageOutput);
 
           const maskDzi    = `/outputs/oilspill/${imageOutput.dziFile}`;
-          // Overlay DZI is at the oilspill outputs root (not in a subdirectory)
-          // pyvips dzsave("{id}_overlay") → "{id}_overlay.dzi"
           const overlayDzi = `/outputs/oilspill/${imgId}_overlay.dzi`;
 
-          // Prefer the pre-generated overlay; fall back to the mask so viewer 3
-          // is never blank while waiting for overlay generation.
-          const overlaySource = overlayDziUrl || overlayDzi;
+          // If the overlay hasn't been generated yet (e.g. webhook failed or generation pending),
+          // fall back to the mask DZI so we don't get a 404 error.
+          const overlaySource = overlayDziUrl || (imageOutput.hasOverlay ? overlayDzi : maskDzi);
 
           console.log("Loading DZIs:", { original: originalDzi, mask: maskDzi, overlay: overlaySource });
 

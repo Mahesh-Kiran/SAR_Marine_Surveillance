@@ -34,7 +34,10 @@ exports.runDetection = async (req, res) => {
     message: `${type} detection queued`,
   });
 
-  const callbackUrl = `${NODE_BASE}/api/detect/webhook`;
+  // Fix for Docker: use host.docker.internal to reach the host Node.js server from the Python container
+  const callbackUrl = process.env.NODE_BASE 
+    ? `${process.env.NODE_BASE}/api/detect/webhook` 
+    : `http://host.docker.internal:${process.env.PORT || 3000}/api/detect/webhook`;
 
   axios.post(`${PYTHON_API_BASE}/start_detection`, {
       type,

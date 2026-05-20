@@ -61,20 +61,30 @@ exports.listUploadsByType = (req, res) => {
 
 exports.listOilspillOutputsDzi = (req, res) => {
   const dirPath = path.join(__dirname, `../../shared/outputs/oilspill`);
+  if (!fs.existsSync(dirPath)) {
+    return res.json({ count: 0, items: [] });
+  }
+
   const files = fs.readdirSync(dirPath);
 
-    // Filter .dzi files
-    const dziFiles = files.filter(file => file.endsWith('.dzi'));
+  // The mask DZI is generated as {id}_files.dzi by the Python script
+  const maskFiles = files.filter(file => file.endsWith('_files.dzi'));
 
-    // Map to full path (or relative path if needed)
-    const dziList = dziFiles.map(file => {
-      const name = path.basename(file, '.dzi');
-      return {
-        dziFile: file,
-        dziPath: path.join(dirPath, file),
-        filesFolder: path.join(dirPath, `${name}_files`)
-      };
-    });
+  const dziList = maskFiles.map(file => {
+    const name = path.basename(file, '.dzi');
+    // Extract original imageId from "{id}_files"
+    const imageId = name.replace('_files', '');
+    
+    // Check if the overlay has been generated yet
+    const hasOverlay = files.includes(`${imageId}_overlay.dzi`);
 
-    res.json({ count: dziList.length, items: dziList });
+    return {
+      dziFile: file,
+      dziPath: path.join(dirPath, file),
+      filesFolder: path.join(dirPath, `${name}_files`),
+      hasOverlay
+    };
+  });
+
+  res.json({ count: dziList.length, items: dziList });
 }
