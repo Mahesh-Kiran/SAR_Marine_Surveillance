@@ -39,14 +39,7 @@ node_modules/
 /public/output_dzi/
 /public/tile_masks/
 /public/tile_meta/
-/public/actual.png
 /public/actual.tiff
-/public/bg.webp
-/public/merged_mask.png
-/public/merged_polygons.json
-/public/oilspill_map.dzi
-/public/output_image.dzi
-/public/overlayed_fullres.png
 01.jpg
 
 
