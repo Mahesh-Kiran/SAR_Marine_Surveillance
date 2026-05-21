@@ -3,6 +3,8 @@ import OpenSeadragon from "openseadragon";
 import { createOSDAnnotator } from '@annotorious/openseadragon';
 import '@annotorious/openseadragon/annotorious-openseadragon.css';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
+import useCollaboration from '../hooks/useCollaboration';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -10,12 +12,14 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Upload, FileImage, Loader2, Info, Ship, Save, Trash2, Download, ArrowLeft, Pencil, Search } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Upload, FileImage, Loader2, Info, Ship, Save, Trash2, Download, ArrowLeft, Pencil, Search, Users, Wifi, WifiOff, Copy, LogIn, LogOut as LogOutIcon } from 'lucide-react';
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
 
 const ShipAnnotationPage = () => {
   const navigate = useNavigate();
+  const { currentUser } = useAuth();
   const [imageMode, setImageMode] = useState(null);
   const [isLoadingList, setIsLoadingList] = useState(false);
   const [dziList, setDziList] = useState([]);
@@ -37,6 +41,98 @@ const ShipAnnotationPage = () => {
   const [savedAnnotations, setSavedAnnotations] = useState([]);
   const [isSaving, setIsSaving] = useState(false);
   const [imageDimensions, setImageDimensions] = useState(null);
+
+  // ── Collaboration states ──
+  const [roomId, setRoomId] = useState(null);
+  const [roomInput, setRoomInput] = useState('');
+  const [showRoomPanel, setShowRoomPanel] = useState(false);
+
+  const userName = currentUser?.displayName
+    || currentUser?.email?.split('@')[0]
+    || 'Anonymous';
+
+  const {
+    isConnected, roomUsers, remoteAnnotations, myColor,
+    broadcastAnnotation, broadcastDelete
+  } = useCollaboration(roomId, imageId, userName);
+
+  // Generate a random room ID
+  const generateRoomId = () => {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    let id = 'SAR-';
+    for (let i = 0; i < 6; i++) id += chars[Math.floor(Math.random() * chars.length)];
+    return id;
+  };
+
+  const handleCreateRoom = () => {
+    const newId = generateRoomId();
+    setRoomId(newId);
+    setRoomInput(newId);
+  };
+
+  const handleJoinRoom = () => {
+    if (roomInput.trim()) {
+      setRoomId(roomInput.trim().toUpperCase());
+    }
+  };
+
+  const handleLeaveRoom = () => {
+    setRoomId(null);
+    setRoomInput('');
+  };
+
+  const copyRoomId = () => {
+    if (roomId) {
+      navigator.clipboard.writeText(roomId);
+      setStatusMsg('Room ID copied to clipboard!');
+      setTimeout(() => setStatusMsg(''), 2000);
+    }
+  };
+
+  // ── Render remote annotations as overlays ──
+  useEffect(() => {
+    if (!osdViewer.current || !osdViewer.current.isOpen()) return;
+
+    // Clear old remote overlays
+    const existing = document.querySelectorAll('.remote-annotation-overlay');
+    existing.forEach(el => el.remove());
+
+    // Add remote annotations
+    remoteAnnotations.forEach((ann) => {
+      if (ann.x == null || ann.y == null || ann.w == null || ann.h == null) return;
+
+      const elt = document.createElement("div");
+      elt.className = 'remote-annotation-overlay';
+      elt.style.border = `2px solid ${ann.color || '#ef4444'}`;
+      elt.style.background = `${ann.color || '#ef4444'}22`;
+      elt.style.pointerEvents = "none";
+      elt.style.boxSizing = "border-box";
+
+      // Author label
+      const label = document.createElement("div");
+      label.style.position = "absolute";
+      label.style.top = "-22px";
+      label.style.left = "0";
+      label.style.background = ann.color || '#ef4444';
+      label.style.color = "#fff";
+      label.style.padding = "1px 5px";
+      label.style.fontSize = "10px";
+      label.style.fontFamily = "monospace";
+      label.style.whiteSpace = "nowrap";
+      label.style.borderRadius = "2px";
+      label.textContent = ann.drawnBy || 'Remote';
+      elt.appendChild(label);
+
+      const rect = osdViewer.current.viewport.imageToViewportRectangle(
+        new OpenSeadragon.Rect(ann.x, ann.y, ann.w, ann.h)
+      );
+
+      osdViewer.current.addOverlay({
+        element: elt,
+        location: rect,
+      });
+    });
+  }, [remoteAnnotations]);
 
   // Fetch available DZIs from backend
   const fetchBackendImages = async () => {
@@ -74,7 +170,6 @@ const ShipAnnotationPage = () => {
     setUploadProgress("Uploading TIFF image...");
 
     try {
-      // Step 1: Upload file
       const formData = new FormData();
       formData.append('image', file);
 
@@ -90,9 +185,7 @@ const ShipAnnotationPage = () => {
 
       const uploadData = await uploadRes.json();
       const imgId = uploadData.file.imageId;
-      console.log('Upload success:', uploadData);
 
-      // Step 2: Generate DZI
       setUploadProgress("Generating DZI tiles (this may take a moment)...");
 
       const dziRes = await fetch(`${API_BASE}/api/dzi/generate/ship/${imgId}`, {
@@ -105,9 +198,7 @@ const ShipAnnotationPage = () => {
       }
 
       const dziData = await dziRes.json();
-      console.log('DZI generated:', dziData);
 
-      // Step 3: Load the generated DZI
       setImageMode('backend');
       setImageId(imgId);
       setSelectedDzi(dziData.dziUrl || `/tiles/ship/${imgId}.dzi`);
@@ -149,7 +240,13 @@ const ShipAnnotationPage = () => {
   // Redraw overlays when saved annotations change
   useEffect(() => {
     if (osdViewer.current && osdViewer.current.isOpen()) {
-      osdViewer.current.clearOverlays();
+      // Remove only local overlays (not remote ones)
+      const localOverlays = document.querySelectorAll('.local-annotation-overlay');
+      localOverlays.forEach(el => {
+        if (osdViewer.current) {
+          osdViewer.current.removeOverlay(el);
+        }
+      });
       addSavedAnnotationOverlays();
     }
   }, [savedAnnotations]);
@@ -181,7 +278,6 @@ const ShipAnnotationPage = () => {
       const tiledImage = osdViewer.current.world.getItemAt(0);
       const dimensions = tiledImage.getContentSize();
       setImageDimensions({ width: dimensions.x, height: dimensions.y });
-      console.log('Image dimensions:', dimensions);
 
       initializeAnnotations();
       addSavedAnnotationOverlays();
@@ -195,9 +291,9 @@ const ShipAnnotationPage = () => {
       drawingMode: 'drag',
       autoSave: false,
       style: {
-        stroke: '#00ff00',
+        stroke: roomId ? myColor : '#00ff00',
         strokeWidth: 2,
-        fill: 'rgba(0, 255, 0, 0.15)'
+        fill: roomId ? `${myColor}26` : 'rgba(0, 255, 0, 0.15)'
       }
     });
 
@@ -217,10 +313,29 @@ const ShipAnnotationPage = () => {
 
     savedAnnotations.forEach((annotation) => {
       const elt = document.createElement("div");
-      elt.style.border = "2px solid lime";
-      elt.style.background = "rgba(0, 255, 0, 0.15)";
+      elt.className = 'local-annotation-overlay';
+      const color = annotation.color || '#00ff00';
+      elt.style.border = `2px solid ${color}`;
+      elt.style.background = `${color}26`;
       elt.style.pointerEvents = "none";
       elt.style.boxSizing = "border-box";
+
+      // Author label for collaborative mode
+      if (annotation.drawnBy) {
+        const label = document.createElement("div");
+        label.style.position = "absolute";
+        label.style.top = "-22px";
+        label.style.left = "0";
+        label.style.background = color;
+        label.style.color = "#fff";
+        label.style.padding = "1px 5px";
+        label.style.fontSize = "10px";
+        label.style.fontFamily = "monospace";
+        label.style.whiteSpace = "nowrap";
+        label.style.borderRadius = "2px";
+        label.textContent = annotation.drawnBy;
+        elt.appendChild(label);
+      }
 
       const rect = osdViewer.current.viewport.imageToViewportRectangle(
         new OpenSeadragon.Rect(annotation.x, annotation.y, annotation.w, annotation.h)
@@ -263,7 +378,22 @@ const ShipAnnotationPage = () => {
         const selector = annotation.target.selector;
         if (selector.type === 'RECTANGLE' && selector.geometry) {
           const { x, y, w, h } = selector.geometry;
-          return { x, y, w, h, label: "ship", score: 1.0 };
+          const det = {
+            x, y, w, h,
+            label: "ship",
+            score: 1.0,
+            id: annotation.id || `rect_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+            drawnBy: userName,
+            drawnAt: new Date().toISOString(),
+            color: roomId ? myColor : '#00ff00'
+          };
+
+          // Broadcast to room if connected
+          if (roomId) {
+            broadcastAnnotation(det);
+          }
+
+          return det;
         }
         return null;
       }).filter(Boolean);
@@ -288,17 +418,25 @@ const ShipAnnotationPage = () => {
       return;
     }
 
+    // Merge local + remote annotations for export, filter for rectangles
+    const allAnnotations = [...savedAnnotations, ...remoteAnnotations].filter(a => a.x != null && a.y != null);
+
+    const collaborators = [...new Set(allAnnotations.map(a => a.drawnBy).filter(Boolean))];
+
     const exportData = {
       imageId: imageId,
       imageDimensions: imageDimensions,
       timestamp: new Date().toISOString(),
-      annotations: savedAnnotations.map(a => ({
+      roomId: roomId || null,
+      annotations: allAnnotations.map(a => ({
         ...a,
         type: 'manual_annotation'
       })),
+      collaborators: collaborators.length > 0 ? collaborators : [userName],
       metadata: {
-        totalAnnotations: savedAnnotations.length,
-        annotationType: 'manual_ship_annotation'
+        totalAnnotations: allAnnotations.length,
+        annotationType: 'manual_ship_annotation',
+        collaborative: !!roomId
       }
     };
 
@@ -313,8 +451,6 @@ const ShipAnnotationPage = () => {
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
-
-    console.log('Annotations exported');
   };
 
   const cleanupViewer = () => {
@@ -510,6 +646,67 @@ const ShipAnnotationPage = () => {
 
       {selectedDzi && (
         <>
+          {/* ── Collaboration Room Panel ── */}
+          <Card className="border-dashed">
+            <CardContent className="p-4">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <Users className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm font-mono font-semibold">Collaboration</span>
+                  {roomId ? (
+                    <Badge variant="default" className="font-mono text-xs gap-1">
+                      {isConnected ? <Wifi className="h-3 w-3" /> : <WifiOff className="h-3 w-3" />}
+                      {roomId}
+                    </Badge>
+                  ) : (
+                    <Badge variant="secondary" className="font-mono text-xs">Solo Mode</Badge>
+                  )}
+                </div>
+
+                {!roomId ? (
+                  <div className="flex items-center gap-2">
+                    <Input
+                      placeholder="Enter Room ID"
+                      value={roomInput}
+                      onChange={e => setRoomInput(e.target.value)}
+                      className="w-40 h-8 font-mono text-xs"
+                      onKeyDown={e => e.key === 'Enter' && handleJoinRoom()}
+                    />
+                    <Button size="sm" variant="secondary" onClick={handleJoinRoom} disabled={!roomInput.trim()}>
+                      <LogIn className="h-3 w-3 mr-1" /> Join
+                    </Button>
+                    <Button size="sm" onClick={handleCreateRoom}>
+                      <Users className="h-3 w-3 mr-1" /> Create Room
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <Button size="sm" variant="outline" onClick={copyRoomId}>
+                      <Copy className="h-3 w-3 mr-1" /> Copy ID
+                    </Button>
+                    <Button size="sm" variant="destructive" onClick={handleLeaveRoom}>
+                      <LogOutIcon className="h-3 w-3 mr-1" /> Leave
+                    </Button>
+                  </div>
+                )}
+              </div>
+
+              {/* Connected users */}
+              {roomId && roomUsers.length > 0 && (
+                <div className="mt-3 flex items-center gap-2 flex-wrap">
+                  <span className="text-xs text-muted-foreground font-mono">Online:</span>
+                  {roomUsers.map((user, idx) => (
+                    <Badge key={idx} variant="outline" className="text-xs font-mono gap-1"
+                      style={{ borderColor: user.color, color: user.color }}>
+                      <div className="w-2 h-2 rounded-full" style={{ background: user.color }} />
+                      {user.userName}
+                    </Badge>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
           {/* Toolbar */}
           <Card>
             <CardContent className="p-4">
@@ -527,6 +724,14 @@ const ShipAnnotationPage = () => {
                       Saved: {savedAnnotations.length}
                     </span>
                   </div>
+                  {roomId && (
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 bg-blue-500 rounded-full animate-pulse"></div>
+                      <span className="text-sm font-mono font-bold">
+                        Remote: {remoteAnnotations.length}
+                      </span>
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex items-center gap-2 flex-wrap">
@@ -567,7 +772,7 @@ const ShipAnnotationPage = () => {
                     </>
                   )}
 
-                  {!isDrawingMode && savedAnnotations.length > 0 && (
+                  {!isDrawingMode && (savedAnnotations.length > 0 || remoteAnnotations.length > 0) && (
                     <Button
                       onClick={downloadAnnotationsJSON}
                       size="sm"
@@ -611,16 +816,18 @@ const ShipAnnotationPage = () => {
                   </div>
                 )}
 
-                {savedAnnotations.length > 0 && (
+                {(savedAnnotations.length > 0 || remoteAnnotations.length > 0) && (
                   <div className="absolute top-4 right-4 bg-black/80 border border-gray-600 p-2 rounded text-xs font-mono space-y-1">
                     <div className="flex items-center gap-2">
-                      <div className="w-3 h-2 bg-green-500 border border-green-600"></div>
-                      <span className="text-white">Active</span>
+                      <div className="w-3 h-2 rounded-sm" style={{ background: roomId ? myColor : '#00ff00', border: `1px solid ${roomId ? myColor : '#00ff00'}` }}></div>
+                      <span className="text-white">Mine ({savedAnnotations.length})</span>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <div className="w-3 h-2 bg-lime-500 border border-lime-600"></div>
-                      <span className="text-white">Saved</span>
-                    </div>
+                    {roomId && remoteAnnotations.length > 0 && (
+                      <div className="flex items-center gap-2">
+                        <div className="w-3 h-2 bg-red-500 border border-red-600 rounded-sm"></div>
+                        <span className="text-white">Remote ({remoteAnnotations.length})</span>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -639,26 +846,26 @@ const ShipAnnotationPage = () => {
       <style>{`
         svg.a9s-annotationlayer .a9s-selection .a9s-outer,
         svg.a9s-annotationlayer .a9s-annotation .a9s-outer {
-          stroke: #00ff00;
+          stroke: ${roomId ? myColor : '#00ff00'};
           stroke-width: 2;
-          fill: rgba(0, 255, 0, 0.1);
+          fill: ${roomId ? `${myColor}1a` : 'rgba(0, 255, 0, 0.1)'};
         }
 
         svg.a9s-annotationlayer .a9s-selection .a9s-inner,
         svg.a9s-annotationlayer .a9s-annotation .a9s-inner {
-          stroke: #00ff00;
+          stroke: ${roomId ? myColor : '#00ff00'};
           stroke-width: 2;
           stroke-dasharray: 5;
-          fill: rgba(0, 255, 0, 0.15);
+          fill: ${roomId ? `${myColor}26` : 'rgba(0, 255, 0, 0.15)'};
         }
 
         svg.a9s-annotationlayer .a9s-annotation.editable:hover .a9s-inner {
-          fill: rgba(0, 255, 0, 0.25);
+          fill: ${roomId ? `${myColor}40` : 'rgba(0, 255, 0, 0.25)'};
         }
 
         svg.a9s-annotationlayer .a9s-handle .a9s-handle-inner {
-          fill: #00ff00;
-          stroke: #00ff00;
+          fill: ${roomId ? myColor : '#00ff00'};
+          stroke: ${roomId ? myColor : '#00ff00'};
         }
       `}</style>
     </div>

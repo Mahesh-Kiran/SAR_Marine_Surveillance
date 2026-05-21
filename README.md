@@ -32,7 +32,13 @@ AI results must be verified by human experts to ensure the model isn't hallucina
 ### 4. Interactive Annotations
 Users can dynamically view and interact with AI-generated bounding boxes. The system uses advanced coordinate math to map absolute image pixels to dynamic viewport coordinates, ensuring annotations scale flawlessly as the user zooms deeply into the image.
 
-### 5. Model Metrics, Datasets, and Training
+### 5. Real-Time Collaborative Annotation Rooms (Multiplayer)
+Security analysts don't have to work alone. Using **Socket.IO WebSockets**, the platform offers "Google Docs style" real-time collaboration. 
+- **Live Sync**: Multiple users can join a secure Room ID and simultaneously draw bounding boxes (for ships) or complex polygons (for oil spills) on the same gigapixel image.
+- **Attribution**: Overlapping annotations are handled gracefully with first-drawer priority. When downloading the JSON data, every single polygon or bounding box is explicitly tagged with the author's name and timestamp.
+- **Validation Audit**: When a senior supervisor uploads the JSON into the Validation tool, it renders the overlays color-coded by the analyst who drew them, ensuring full accountability.
+
+### 6. Model Metrics, Datasets, and Training
 Our models were heavily trained on specialized maritime datasets:
 
 **🚢 Ship Detection Dataset (SARscope)**

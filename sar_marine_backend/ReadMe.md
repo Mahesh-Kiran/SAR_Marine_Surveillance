@@ -26,15 +26,16 @@ The Python ML engine utilizes two distinct deep learning architectures to proces
 
 ### Node.js API Gateway (`/server`)
 
-The Gateway acts as the secure orchestrator. It manages MongoDB persistence and delegates heavy tasks to the Python engine.
+The Gateway acts as the secure orchestrator. It manages MongoDB persistence, delegates heavy tasks to the Python engine, and hosts the **Socket.IO WebSocket server** for real-time multiplayer annotation rooms.
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
+| Endpoint / Namespace | Method | Description |
+|----------------------|--------|-------------|
 | `/api/images/upload/:type` | `POST` | Uploads a `.tiff` image to the shared volume. `:type` must be `ship` or `oilspill`. |
 | `/api/images/uploads/:type` | `GET` | Retrieves a list of previously uploaded images for the specific type. |
 | `/api/detect/:type/:imageId` | `POST` | Initializes a detection job in MongoDB and asynchronously triggers the Python ML API. |
 | `/api/detect/status/:jobId` | `GET` | Polls the current status of an AI job (`queued`, `running`, `completed`, `failed`). |
 | `/api/detect/webhook` | `POST` | Internal endpoint. The Python ML container hits this when a detection job finishes. |
+| `/collab` | `WS` | Socket.IO namespace for Real-Time Collaborative Annotation Rooms. Handles `join-room`, `annotation-created`, and `annotation-deleted` events. |
 
 ### Python Machine Learning API (`/model_server`)
 

@@ -156,7 +156,10 @@ const ShipValidator = () => {
             totalAnnotations: manualOnly.length,
             manualAnnotations: manualOnly.length,
             imageDimensions: data.imageDimensions,
-            timestamp: formatTimestamp(data.timestamp)
+            timestamp: formatTimestamp(data.timestamp),
+            collaborative: data.metadata?.collaborative || false,
+            collaborators: data.collaborators || [],
+            roomId: data.roomId || null
           };
           setStats(stats);
         } catch (err) {
@@ -237,12 +240,13 @@ const ShipValidator = () => {
     const manualAnnotations = annotationData.annotations.filter(a => a.type === 'manual_annotation');
 
     manualAnnotations.forEach((annotation, index) => {
-      const { x, y, w, h, label } = annotation;
+      const { x, y, w, h, label, drawnBy, color: annColor } = annotation;
+      const borderColor = annColor || '#ef4444';
 
       const elt = document.createElement("div");
       elt.className = "dzi-annotation-box";
-      elt.style.border = "2px solid #ef4444";
-      elt.style.background = "rgba(239, 68, 68, 0.15)";
+      elt.style.border = `2px solid ${borderColor}`;
+      elt.style.background = `${borderColor}26`;
       elt.style.pointerEvents = "none";
       elt.style.boxSizing = "border-box";
 
@@ -250,7 +254,7 @@ const ShipValidator = () => {
       labelDiv.style.position = "absolute";
       labelDiv.style.top = "-24px";
       labelDiv.style.left = "0";
-      labelDiv.style.background = "#ef4444";
+      labelDiv.style.background = borderColor;
       labelDiv.style.color = "#ffffff";
       labelDiv.style.padding = "2px 6px";
       labelDiv.style.fontSize = "11px";
@@ -258,7 +262,7 @@ const ShipValidator = () => {
       labelDiv.style.fontFamily = "monospace";
       labelDiv.style.whiteSpace = "nowrap";
       labelDiv.style.borderRadius = "3px";
-      labelDiv.textContent = `${index + 1}: ${label}`;
+      labelDiv.textContent = drawnBy ? `${index + 1}: ${label} — ${drawnBy}` : `${index + 1}: ${label}`;
       elt.appendChild(labelDiv);
 
       const rect = osdViewer.current.viewport.imageToViewportRectangle(
@@ -386,7 +390,7 @@ const ShipValidator = () => {
 
   const getManualAnnotations = () => {
     if (!annotationData) return [];
-    return annotationData.annotations.filter(a => a.type === 'manual_annotation');
+    return annotationData.annotations.filter(a => a.type === 'manual_annotation' && a.x != null);
   };
 
   const isReadyToRender = () => {
@@ -524,7 +528,7 @@ const ShipValidator = () => {
           <CardHeader>
             <CardTitle className="text-base">Statistics</CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-4">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div>
                 <p className="text-sm text-muted-foreground">Annotations</p>
@@ -549,6 +553,15 @@ const ShipValidator = () => {
                 <p className="text-xs font-mono">{stats.timestamp}</p>
               </div>
             </div>
+            {stats.collaborative && (
+              <div className="flex items-center gap-2 flex-wrap pt-2 border-t">
+                <Badge variant="outline" className="font-mono text-xs">COLLABORATIVE</Badge>
+                {stats.roomId && <Badge variant="secondary" className="font-mono text-xs">Room: {stats.roomId}</Badge>}
+                {stats.collaborators.map((name, idx) => (
+                  <Badge key={idx} variant="secondary" className="text-xs font-mono">{name}</Badge>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
       )}
@@ -689,7 +702,8 @@ const ShipValidator = () => {
 
                   {/* Render annotations */}
                   {annotationData && getManualAnnotations().map((annotation, index) => {
-                    const { x, y, w, h, label } = annotation;
+                    const { x, y, w, h, label, drawnBy, color: annColor } = annotation;
+                    const borderColor = annColor || '#ef4444';
 
                     const scaledX = x * imageScale.scaleX;
                     const scaledY = y * imageScale.scaleY;
@@ -705,8 +719,8 @@ const ShipValidator = () => {
                           top: `${imageScale.offsetY + scaledY}px`,
                           width: `${scaledW}px`,
                           height: `${scaledH}px`,
-                          border: '2px solid #ef4444',
-                          background: 'rgba(239, 68, 68, 0.15)',
+                          border: `2px solid ${borderColor}`,
+                          background: `${borderColor}26`,
                           boxSizing: 'border-box',
                         }}
                       >
@@ -715,7 +729,7 @@ const ShipValidator = () => {
                             position: 'absolute',
                             top: '-24px',
                             left: '0',
-                            background: '#ef4444',
+                            background: borderColor,
                             color: '#ffffff',
                             padding: '2px 6px',
                             fontSize: '11px',
@@ -725,7 +739,7 @@ const ShipValidator = () => {
                             borderRadius: '3px',
                           }}
                         >
-                          {index + 1}: {label}
+                          {drawnBy ? `${index + 1}: ${label} — ${drawnBy}` : `${index + 1}: ${label}`}
                         </div>
                       </div>
                     );
@@ -750,6 +764,7 @@ const ShipValidator = () => {
                   <tr className="border-b bg-muted/50">
                     <th className="px-4 py-3 text-left font-medium">#</th>
                     <th className="px-4 py-3 text-left font-medium">Label</th>
+                    <th className="px-4 py-3 text-left font-medium">Drawn By</th>
                     <th className="px-4 py-3 text-right font-medium">X</th>
                     <th className="px-4 py-3 text-right font-medium">Y</th>
                     <th className="px-4 py-3 text-right font-medium">Width</th>
@@ -760,13 +775,19 @@ const ShipValidator = () => {
                 <tbody>
                   {getManualAnnotations().map((ann, idx) => (
                     <tr key={idx} className="border-b last:border-0">
-                      <td className="px-4 py-3 font-mono">{idx + 1}</td>
+                      <td className="px-4 py-3 font-mono">
+                        <span className="flex items-center gap-2">
+                          {ann.color && <div className="w-2.5 h-2.5 rounded-full" style={{ background: ann.color }} />}
+                          {idx + 1}
+                        </span>
+                      </td>
                       <td className="px-4 py-3">{ann.label}</td>
-                      <td className="px-4 py-3 text-right font-mono text-muted-foreground">{ann.x.toFixed(2)}</td>
-                      <td className="px-4 py-3 text-right font-mono text-muted-foreground">{ann.y.toFixed(2)}</td>
-                      <td className="px-4 py-3 text-right font-mono text-muted-foreground">{ann.w.toFixed(2)}</td>
-                      <td className="px-4 py-3 text-right font-mono text-muted-foreground">{ann.h.toFixed(2)}</td>
-                      <td className="px-4 py-3 text-right font-mono">{(ann.score * 100).toFixed(1)}%</td>
+                      <td className="px-4 py-3 font-mono text-sm">{ann.drawnBy || '—'}</td>
+                      <td className="px-4 py-3 text-right font-mono text-muted-foreground">{ann.x != null ? ann.x.toFixed(2) : '—'}</td>
+                      <td className="px-4 py-3 text-right font-mono text-muted-foreground">{ann.y != null ? ann.y.toFixed(2) : '—'}</td>
+                      <td className="px-4 py-3 text-right font-mono text-muted-foreground">{ann.w != null ? ann.w.toFixed(2) : '—'}</td>
+                      <td className="px-4 py-3 text-right font-mono text-muted-foreground">{ann.h != null ? ann.h.toFixed(2) : '—'}</td>
+                      <td className="px-4 py-3 text-right font-mono">{ann.score != null ? (ann.score * 100).toFixed(1) + '%' : '—'}</td>
                     </tr>
                   ))}
                 </tbody>

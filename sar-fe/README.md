@@ -25,6 +25,14 @@ The frontend uses advanced mathematical mapping to overlay these annotations ont
 - It dynamically recalculates the position of the bounding boxes from "Image Pixel Space" to "Web Viewport Space".
 - The annotations scale flawlessly in real-time, ensuring the bounding box tightly wraps the detected vessel regardless of the current zoom depth.
 
+## 🤝 Real-Time Collaboration (Multiplayer)
+
+The frontend features "Google Docs style" real-time collaboration for human analysts. Powered by `socket.io-client` via a shared `useCollaboration` React Hook, analysts can:
+- **Join Rooms**: Connect to a specific Room ID via WebSockets.
+- **Live Sync**: See bounding boxes (rectangles) or oil spill (polygons) drawn by remote colleagues instantly appear on their screen.
+- **Attribution**: Every remote annotation is labeled with the specific author's name and assigned a unique color.
+- **Export**: When the annotation session is complete, downloading the JSON bundles both local and remote annotations together, ensuring every shape is cryptographically tagged to the analyst who drew it.
+
 ## 🔍 Synchronized Multi-Panel Analysis
 
 In critical scenarios like oil spill containment, operators must compare raw radar data against AI segmentations. The interface provides up to three side-by-side viewports:

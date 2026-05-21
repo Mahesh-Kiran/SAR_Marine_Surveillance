@@ -156,7 +156,10 @@ const OilSpillValidator = () => {
             totalAnnotations: polygonAnnotations.length,
             polygonAnnotations: polygonAnnotations.length,
             imageDimensions: data.imageDimensions,
-            timestamp: formatTimestamp(data.timestamp)
+            timestamp: formatTimestamp(data.timestamp),
+            collaborative: data.metadata?.collaborative || false,
+            collaborators: data.collaborators || [],
+            roomId: data.roomId || null
           };
           setStats(stats);
         } catch (err) {
@@ -267,8 +270,8 @@ const OilSpillValidator = () => {
       const polygon = document.createElementNS(svgNS, "polygon");
       const pointsStr = viewportPoints.map(p => `${p.x},${p.y}`).join(' ');
       polygon.setAttribute("points", pointsStr);
-      polygon.setAttribute("fill", "rgba(239, 68, 68, 0.2)");
-      polygon.setAttribute("stroke", "#ef4444");
+      polygon.setAttribute("fill", `${annotation.color || '#ef4444'}33`);
+      polygon.setAttribute("stroke", annotation.color || '#ef4444');
       polygon.setAttribute("stroke-width", "2");
 
       svg.appendChild(polygon);
@@ -279,11 +282,13 @@ const OilSpillValidator = () => {
       const text = document.createElementNS(svgNS, "text");
       text.setAttribute("x", minX);
       text.setAttribute("y", minY - 10);
-      text.setAttribute("fill", "#ef4444");
+      text.setAttribute("fill", annotation.color || '#ef4444');
       text.setAttribute("font-size", "12");
       text.setAttribute("font-weight", "600");
       text.setAttribute("font-family", "monospace");
-      text.textContent = `${index + 1}: ${label || 'oil_spill'} (${cleanPoints.length})`;
+      text.textContent = annotation.drawnBy
+        ? `${index + 1}: ${label || 'oil_spill'} — ${annotation.drawnBy}`
+        : `${index + 1}: ${label || 'oil_spill'} (${cleanPoints.length})`;
       svg.appendChild(text);
 
       container.appendChild(svg);
@@ -560,7 +565,7 @@ const OilSpillValidator = () => {
           <CardHeader>
             <CardTitle className="text-base">Statistics</CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-4">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div>
                 <p className="text-sm text-muted-foreground">Polygons</p>
@@ -585,6 +590,15 @@ const OilSpillValidator = () => {
                 <p className="text-xs font-mono">{stats.timestamp}</p>
               </div>
             </div>
+            {stats.collaborative && (
+              <div className="flex items-center gap-2 flex-wrap pt-2 border-t">
+                <Badge variant="outline" className="font-mono text-xs">COLLABORATIVE</Badge>
+                {stats.roomId && <Badge variant="secondary" className="font-mono text-xs">Room: {stats.roomId}</Badge>}
+                {stats.collaborators.map((name, idx) => (
+                  <Badge key={idx} variant="secondary" className="text-xs font-mono">{name}</Badge>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
       )}
@@ -757,19 +771,21 @@ const OilSpillValidator = () => {
                       >
                         <polygon
                           points={pointsStr}
-                          fill="rgba(239, 68, 68, 0.2)"
-                          stroke="#ef4444"
+                          fill={`${annotation.color || '#ef4444'}33`}
+                          stroke={annotation.color || '#ef4444'}
                           strokeWidth="2"
                         />
                         <text
                           x={minX}
                           y={minY - 10}
-                          fill="#ef4444"
+                          fill={annotation.color || '#ef4444'}
                           fontSize="12"
                           fontWeight="600"
                           fontFamily="monospace"
                         >
-                          {index + 1}: {label} ({cleanPoints.length})
+                          {annotation.drawnBy
+                            ? `${index + 1}: ${annotation.label} — ${annotation.drawnBy}`
+                            : `${index + 1}: ${annotation.label} (${cleanPoints.length})`}
                         </text>
                       </svg>
                     );
@@ -794,6 +810,7 @@ const OilSpillValidator = () => {
                   <tr className="border-b bg-muted/50">
                     <th className="px-4 py-3 text-left font-medium">#</th>
                     <th className="px-4 py-3 text-left font-medium">Label</th>
+                    <th className="px-4 py-3 text-left font-medium">Drawn By</th>
                     <th className="px-4 py-3 text-center font-medium">Points</th>
                     <th className="px-4 py-3 text-right font-medium">Area (px²)</th>
                   </tr>
@@ -803,8 +820,14 @@ const OilSpillValidator = () => {
                     const area = calculatePolygonArea(ann.points);
                     return (
                       <tr key={idx} className="border-b last:border-0">
-                        <td className="px-4 py-3 font-mono">{idx + 1}</td>
+                        <td className="px-4 py-3 font-mono">
+                          <span className="flex items-center gap-2">
+                            {ann.color && <div className="w-2.5 h-2.5 rounded-full" style={{ background: ann.color }} />}
+                            {idx + 1}
+                          </span>
+                        </td>
                         <td className="px-4 py-3">{ann.label}</td>
+                        <td className="px-4 py-3 font-mono text-sm">{ann.drawnBy || '—'}</td>
                         <td className="px-4 py-3 text-center font-mono text-muted-foreground">{ann.points.length}</td>
                         <td className="px-4 py-3 text-right font-mono">{area.toFixed(0)}</td>
                       </tr>

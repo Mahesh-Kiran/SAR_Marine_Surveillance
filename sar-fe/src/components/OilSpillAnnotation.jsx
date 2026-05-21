@@ -3,6 +3,8 @@ import OpenSeadragon from 'openseadragon';
 import { createOSDAnnotator } from '@annotorious/openseadragon';
 import '@annotorious/openseadragon/annotorious-openseadragon.css';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
+import useCollaboration from '../hooks/useCollaboration';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -10,12 +12,14 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Upload, FileImage, Loader2, Info, Droplet, Save, Trash2, Download, ArrowLeft, Pencil, Search } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Upload, FileImage, Loader2, Info, Droplet, Save, Trash2, Download, ArrowLeft, Pencil, Search, Users, Wifi, WifiOff, Copy, LogIn, LogOut as LogOutIcon } from 'lucide-react';
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
 
 const OilSpillAnnotationPage = () => {
   const navigate = useNavigate();
+  const { currentUser } = useAuth();
   const [imageMode, setImageMode] = useState(null);
   const [isLoadingList, setIsLoadingList] = useState(false);
   const [dziList, setDziList] = useState([]);
@@ -30,12 +34,154 @@ const OilSpillAnnotationPage = () => {
   const osdViewer = useRef(null);
   const annotatorRef = useRef(null);
   const overlayRefs = useRef([]);
+  const remoteOverlayRefs = useRef([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isDrawingMode, setIsDrawingMode] = useState(false);
   const [annotationCount, setAnnotationCount] = useState(0);
   const [savedAnnotations, setSavedAnnotations] = useState([]);
   const [isSaving, setIsSaving] = useState(false);
   const [imageDimensions, setImageDimensions] = useState(null);
+
+  // ── Collaboration states ──
+  const [roomId, setRoomId] = useState(null);
+  const [roomInput, setRoomInput] = useState('');
+
+  const userName = currentUser?.displayName
+    || currentUser?.email?.split('@')[0]
+    || 'Anonymous';
+
+  const {
+    isConnected, roomUsers, remoteAnnotations, myColor,
+    broadcastAnnotation, broadcastDelete
+  } = useCollaboration(roomId, imageId, userName);
+
+  const generateRoomId = () => {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    let id = 'OIL-';
+    for (let i = 0; i < 6; i++) id += chars[Math.floor(Math.random() * chars.length)];
+    return id;
+  };
+
+  const handleCreateRoom = () => {
+    const newId = generateRoomId();
+    setRoomId(newId);
+    setRoomInput(newId);
+  };
+
+  const handleJoinRoom = () => {
+    if (roomInput.trim()) setRoomId(roomInput.trim().toUpperCase());
+  };
+
+  const handleLeaveRoom = () => {
+    setRoomId(null);
+    setRoomInput('');
+  };
+
+  const copyRoomId = () => {
+    if (roomId) {
+      navigator.clipboard.writeText(roomId);
+      setStatusMsg('Room ID copied!');
+      setTimeout(() => setStatusMsg(''), 2000);
+    }
+  };
+
+  // ── Render remote polygon annotations ──
+  const addRemoteAnnotationOverlays = () => {
+    if (!osdViewer.current || !osdViewer.current.isOpen()) return;
+
+    // Clear old remote overlays
+    remoteOverlayRefs.current.forEach(o => { if (o && o.parentNode) o.parentNode.removeChild(o); });
+    remoteOverlayRefs.current = [];
+    const existing = document.querySelectorAll('.remote-polygon-overlay');
+    existing.forEach(el => el.remove());
+
+    const svgNS = "http://www.w3.org/2000/svg";
+    const container = osdViewer.current.canvas;
+
+    remoteAnnotations.forEach((ann) => {
+      if (ann.annotation_type !== 'polygon' && ann.type !== 'polygon') return;
+      if (!ann.points || ann.points.length === 0) return;
+
+      const svg = document.createElementNS(svgNS, "svg");
+      svg.classList.add('remote-polygon-overlay');
+      svg.style.cssText = "position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;overflow:visible;z-index:10";
+
+      const pts = ann.points.map(p => {
+        const vp = osdViewer.current.viewport.imageToViewportCoordinates(new OpenSeadragon.Point(p[0], p[1]));
+        return osdViewer.current.viewport.viewportToViewerElementCoordinates(vp);
+      });
+
+      const polygon = document.createElementNS(svgNS, "polygon");
+      polygon.setAttribute("points", pts.map(p => `${p.x},${p.y}`).join(' '));
+      polygon.setAttribute("fill", `${ann.color || '#ef4444'}33`);
+      polygon.setAttribute("stroke", ann.color || '#ef4444');
+      polygon.setAttribute("stroke-width", "3");
+      svg.appendChild(polygon);
+
+      // Author label
+      if (ann.drawnBy && pts.length > 0) {
+        const text = document.createElementNS(svgNS, "text");
+        text.setAttribute("x", pts[0].x);
+        text.setAttribute("y", pts[0].y - 8);
+        text.setAttribute("fill", ann.color || '#ef4444');
+        text.setAttribute("font-size", "11");
+        text.setAttribute("font-family", "monospace");
+        text.setAttribute("font-weight", "bold");
+        text.textContent = ann.drawnBy;
+        svg.appendChild(text);
+      }
+
+      container.appendChild(svg);
+      remoteOverlayRefs.current.push(svg);
+    });
+  };
+
+  const updateRemoteOverlayPositions = () => {
+    if (!osdViewer.current || remoteOverlayRefs.current.length === 0) return;
+    
+    const validRemoteAnns = remoteAnnotations.filter(ann => (ann.annotation_type === 'polygon' || ann.type === 'polygon') && ann.points && ann.points.length > 0);
+
+    remoteOverlayRefs.current.forEach((svgEl, idx) => {
+      const ann = validRemoteAnns[idx];
+      if (!ann || !ann.points) return;
+      const polygon = svgEl.querySelector('polygon');
+      if (!polygon) return;
+      const pts = ann.points.map(p => {
+        const vp = osdViewer.current.viewport.imageToViewportCoordinates(new OpenSeadragon.Point(p[0], p[1]));
+        return osdViewer.current.viewport.viewportToViewerElementCoordinates(vp);
+      });
+      polygon.setAttribute('points', pts.map(p => `${p.x},${p.y}`).join(' '));
+
+      // Update label position
+      const text = svgEl.querySelector('text');
+      if (text && pts.length > 0) {
+        text.setAttribute('x', pts[0].x);
+        text.setAttribute('y', pts[0].y - 8);
+      }
+    });
+  };
+
+  useEffect(() => {
+    addRemoteAnnotationOverlays();
+  }, [remoteAnnotations]);
+
+  // Update overlays on pan/zoom
+  useEffect(() => {
+    if (osdViewer.current && osdViewer.current.isOpen()) {
+      const updateHandler = () => {
+        if (remoteAnnotations.length > 0) updateRemoteOverlayPositions();
+        if (savedAnnotations.length > 0) updateOverlayPositions();
+      };
+      osdViewer.current.addHandler('animation', updateHandler);
+      osdViewer.current.addHandler('resize', updateHandler);
+      return () => {
+        if (osdViewer.current) {
+          osdViewer.current.removeHandler('animation', updateHandler);
+          osdViewer.current.removeHandler('resize', updateHandler);
+        }
+      };
+    }
+  }, [savedAnnotations, remoteAnnotations]);
 
   const fetchBackendImages = async () => {
     setIsLoadingList(true);
@@ -61,30 +207,19 @@ const OilSpillAnnotationPage = () => {
   const handleFileUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (!file.name.match(/\.(tif|tiff)$/i)) {
-      alert('Please select a TIFF file.');
-      return;
-    }
+    if (!file.name.match(/\.(tif|tiff)$/i)) { alert('Please select a TIFF file.'); return; }
     setIsUploading(true);
     setUploadProgress("Uploading TIFF image...");
     try {
       const formData = new FormData();
       formData.append('image', file);
-      const uploadRes = await fetch(`${API_BASE}/api/images/upload/oilspill`, {
-        method: 'POST', body: formData
-      });
-      if (!uploadRes.ok) {
-        const err = await uploadRes.json();
-        throw new Error(err.error || 'Upload failed');
-      }
+      const uploadRes = await fetch(`${API_BASE}/api/images/upload/oilspill`, { method: 'POST', body: formData });
+      if (!uploadRes.ok) { const err = await uploadRes.json(); throw new Error(err.error || 'Upload failed'); }
       const uploadData = await uploadRes.json();
       const imgId = uploadData.file.imageId;
       setUploadProgress("Generating DZI tiles...");
       const dziRes = await fetch(`${API_BASE}/api/dzi/generate/oilspill/${imgId}`, { method: 'POST' });
-      if (!dziRes.ok) {
-        const err = await dziRes.json();
-        throw new Error(err.error || 'DZI generation failed');
-      }
+      if (!dziRes.ok) { const err = await dziRes.json(); throw new Error(err.error || 'DZI generation failed'); }
       const dziData = await dziRes.json();
       setImageMode('backend');
       setImageId(imgId);
@@ -118,22 +253,6 @@ const OilSpillAnnotationPage = () => {
     if (osdViewer.current && osdViewer.current.isOpen() && savedAnnotations.length > 0) {
       clearOldOverlays();
       addSavedAnnotationOverlays();
-    }
-  }, [savedAnnotations]);
-
-  useEffect(() => {
-    if (osdViewer.current && osdViewer.current.isOpen()) {
-      const updateHandler = () => {
-        if (savedAnnotations.length > 0) updateOverlayPositions();
-      };
-      osdViewer.current.addHandler('animation', updateHandler);
-      osdViewer.current.addHandler('resize', updateHandler);
-      return () => {
-        if (osdViewer.current) {
-          osdViewer.current.removeHandler('animation', updateHandler);
-          osdViewer.current.removeHandler('resize', updateHandler);
-        }
-      };
     }
   }, [savedAnnotations]);
 
@@ -177,7 +296,11 @@ const OilSpillAnnotationPage = () => {
     if (!osdViewer.current || annotatorRef.current) return;
     annotatorRef.current = createOSDAnnotator(osdViewer.current, {
       drawingEnabled: false, drawingMode: 'drag', autoSave: false,
-      style: { stroke: '#00ff00', strokeWidth: 2, fill: 'rgba(0, 255, 0, 0.15)' }
+      style: {
+        stroke: roomId ? myColor : '#00ff00',
+        strokeWidth: 2,
+        fill: roomId ? `${myColor}26` : 'rgba(0, 255, 0, 0.15)'
+      }
     });
     annotatorRef.current.setDrawingTool('polygon');
     const updateCount = () => setAnnotationCount(annotatorRef.current.getAnnotations().length);
@@ -202,6 +325,13 @@ const OilSpillAnnotationPage = () => {
         return osdViewer.current.viewport.viewportToViewerElementCoordinates(vp);
       });
       polygon.setAttribute('points', pts.map(p => `${p.x},${p.y}`).join(' '));
+
+      // Update label position
+      const text = svgEl.querySelector('text');
+      if (text && pts.length > 0) {
+        text.setAttribute('x', pts[0].x);
+        text.setAttribute('y', pts[0].y - 8);
+      }
     });
   };
 
@@ -213,16 +343,31 @@ const OilSpillAnnotationPage = () => {
       if (ann.type === 'polygon' && ann.points && ann.points.length > 0) {
         const svg = document.createElementNS(svgNS, "svg");
         svg.style.cssText = "position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;overflow:visible;z-index:10";
+        const color = ann.color || '#00ff00';
         const pts = ann.points.map(p => {
           const vp = osdViewer.current.viewport.imageToViewportCoordinates(new OpenSeadragon.Point(p[0], p[1]));
           return osdViewer.current.viewport.viewportToViewerElementCoordinates(vp);
         });
         const polygon = document.createElementNS(svgNS, "polygon");
         polygon.setAttribute("points", pts.map(p => `${p.x},${p.y}`).join(' '));
-        polygon.setAttribute("fill", "rgba(0, 255, 0, 0.2)");
-        polygon.setAttribute("stroke", "lime");
+        polygon.setAttribute("fill", `${color}33`);
+        polygon.setAttribute("stroke", color);
         polygon.setAttribute("stroke-width", "3");
         svg.appendChild(polygon);
+
+        // Author label
+        if (ann.drawnBy && pts.length > 0) {
+          const text = document.createElementNS(svgNS, "text");
+          text.setAttribute("x", pts[0].x);
+          text.setAttribute("y", pts[0].y - 8);
+          text.setAttribute("fill", color);
+          text.setAttribute("font-size", "11");
+          text.setAttribute("font-family", "monospace");
+          text.setAttribute("font-weight", "bold");
+          text.textContent = ann.drawnBy;
+          svg.appendChild(text);
+        }
+
         container.appendChild(svg);
         overlayRefs.current.push(svg);
       }
@@ -253,7 +398,20 @@ const OilSpillAnnotationPage = () => {
       const formatted = annotations.map(a => {
         const s = a.target.selector;
         if (s.type === 'POLYGON' && s.geometry && s.geometry.points) {
-          return { type: 'polygon', points: s.geometry.points, label: "oil_spill", score: 1.0, id: a.id || `polygon_${Date.now()}` };
+          const det = {
+            type: 'polygon',
+            points: s.geometry.points,
+            label: "oil_spill",
+            score: 1.0,
+            id: a.id || `polygon_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+            drawnBy: userName,
+            drawnAt: new Date().toISOString(),
+            color: roomId ? myColor : '#00ff00'
+          };
+
+          if (roomId) broadcastAnnotation({ ...det, annotation_type: 'polygon' });
+
+          return det;
         }
         return null;
       }).filter(Boolean);
@@ -270,12 +428,30 @@ const OilSpillAnnotationPage = () => {
 
   const downloadAnnotationsJSON = () => {
     if (!imageDimensions) { alert('Wait for image to load'); return; }
-    if (savedAnnotations.length === 0) { alert('No annotations to download!'); return; }
+
+    const allAnnotations = [...savedAnnotations, ...remoteAnnotations].filter(a => a.points && Array.isArray(a.points));
+    if (allAnnotations.length === 0) { alert('No annotations to download!'); return; }
+
+    const collaborators = [...new Set(allAnnotations.map(a => a.drawnBy).filter(Boolean))];
+
     const exportData = {
       imageId, imageDimensions,
       timestamp: new Date().toISOString(),
-      annotations: savedAnnotations.map(a => ({ ...a, type: 'manual_annotation', annotation_type: 'polygon', label: 'oil_spill', score: 1.0 })),
-      metadata: { totalAnnotations: savedAnnotations.length, annotationType: 'polygon', label: 'oil_spill' }
+      roomId: roomId || null,
+      annotations: allAnnotations.map(a => ({
+        ...a,
+        type: 'manual_annotation',
+        annotation_type: 'polygon',
+        label: 'oil_spill',
+        score: 1.0
+      })),
+      collaborators: collaborators.length > 0 ? collaborators : [userName],
+      metadata: {
+        totalAnnotations: allAnnotations.length,
+        annotationType: 'polygon',
+        label: 'oil_spill',
+        collaborative: !!roomId
+      }
     };
     const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -411,6 +587,62 @@ const OilSpillAnnotationPage = () => {
 
       {selectedDzi && (
         <>
+          {/* ── Collaboration Room Panel ── */}
+          <Card className="border-dashed">
+            <CardContent className="p-4">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <Users className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm font-mono font-semibold">Collaboration</span>
+                  {roomId ? (
+                    <Badge variant="default" className="font-mono text-xs gap-1">
+                      {isConnected ? <Wifi className="h-3 w-3" /> : <WifiOff className="h-3 w-3" />}
+                      {roomId}
+                    </Badge>
+                  ) : (
+                    <Badge variant="secondary" className="font-mono text-xs">Solo Mode</Badge>
+                  )}
+                </div>
+
+                {!roomId ? (
+                  <div className="flex items-center gap-2">
+                    <Input placeholder="Enter Room ID" value={roomInput} onChange={e => setRoomInput(e.target.value)}
+                      className="w-40 h-8 font-mono text-xs" onKeyDown={e => e.key === 'Enter' && handleJoinRoom()} />
+                    <Button size="sm" variant="secondary" onClick={handleJoinRoom} disabled={!roomInput.trim()}>
+                      <LogIn className="h-3 w-3 mr-1" /> Join
+                    </Button>
+                    <Button size="sm" onClick={handleCreateRoom}>
+                      <Users className="h-3 w-3 mr-1" /> Create Room
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <Button size="sm" variant="outline" onClick={copyRoomId}>
+                      <Copy className="h-3 w-3 mr-1" /> Copy ID
+                    </Button>
+                    <Button size="sm" variant="destructive" onClick={handleLeaveRoom}>
+                      <LogOutIcon className="h-3 w-3 mr-1" /> Leave
+                    </Button>
+                  </div>
+                )}
+              </div>
+
+              {roomId && roomUsers.length > 0 && (
+                <div className="mt-3 flex items-center gap-2 flex-wrap">
+                  <span className="text-xs text-muted-foreground font-mono">Online:</span>
+                  {roomUsers.map((user, idx) => (
+                    <Badge key={idx} variant="outline" className="text-xs font-mono gap-1"
+                      style={{ borderColor: user.color, color: user.color }}>
+                      <div className="w-2 h-2 rounded-full" style={{ background: user.color }} />
+                      {user.userName}
+                    </Badge>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Toolbar */}
           <Card><CardContent className="p-4">
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
               <div className="flex items-center gap-4 flex-wrap">
@@ -422,6 +654,12 @@ const OilSpillAnnotationPage = () => {
                   <div className="w-3 h-3 bg-lime-500 rounded-full animate-pulse"></div>
                   <span className="text-sm font-mono font-bold">Saved: {savedAnnotations.length}</span>
                 </div>
+                {roomId && (
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 bg-blue-500 rounded-full animate-pulse"></div>
+                    <span className="text-sm font-mono font-bold">Remote: {remoteAnnotations.length}</span>
+                  </div>
+                )}
               </div>
               <div className="flex items-center gap-2 flex-wrap">
                 <Button onClick={toggleDrawingMode} size="sm" variant={isDrawingMode ? "default" : "secondary"} className={isDrawingMode ? "animate-pulse" : ""}>
@@ -433,16 +671,17 @@ const OilSpillAnnotationPage = () => {
                     {isSaving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}Save
                   </Button>
                 </>)}
-                {!isDrawingMode && savedAnnotations.length > 0 && (
+                {!isDrawingMode && (savedAnnotations.length > 0 || remoteAnnotations.length > 0) && (
                   <Button onClick={downloadAnnotationsJSON} size="sm" variant="secondary"><Download className="h-4 w-4 mr-2" />Download JSON</Button>
                 )}
               </div>
             </div>
           </CardContent></Card>
 
+          {/* Viewer */}
           <Card>
             <CardHeader><CardTitle>Polygon Annotation Workspace</CardTitle>
-              <CardDescription>{isDrawingMode ? "Click to add polygon points • ENTER to finish • ESC to cancel" : "Enable drawing mode to annotate oil spills"}</CardDescription>
+              <CardDescription>{isDrawingMode ? "Click to add polygon points — ENTER to finish — ESC to cancel" : "Enable drawing mode to annotate oil spills"}</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="relative">
@@ -458,14 +697,22 @@ const OilSpillAnnotationPage = () => {
                 {isDrawingMode && (
                   <div className="absolute bottom-4 left-4 px-4 py-2 rounded-lg bg-orange-900/90 border border-orange-600 text-white font-mono text-sm z-20">
                     <div className="font-bold mb-1 flex items-center gap-1"><Pencil className="h-3 w-3" /> Polygon Drawing Mode</div>
-                    <div className="text-gray-200 text-xs">Click to add points • ENTER to finish</div>
+                    <div className="text-gray-200 text-xs">Click to add points — ENTER to finish</div>
                     <div className="text-yellow-300 mt-1 text-xs flex items-center gap-1"><Save className="h-3 w-3" /> Click SAVE to persist</div>
                   </div>
                 )}
-                {savedAnnotations.length > 0 && (
+                {(savedAnnotations.length > 0 || remoteAnnotations.length > 0) && (
                   <div className="absolute top-4 right-4 bg-black/80 border border-gray-600 p-2 rounded text-xs font-mono space-y-1 z-20">
-                    <div className="flex items-center gap-2"><div className="w-3 h-2 bg-green-500 border border-green-600"></div><span className="text-white">Active</span></div>
-                    <div className="flex items-center gap-2"><div className="w-3 h-2 bg-lime-500 border border-lime-600"></div><span className="text-white">Saved ({savedAnnotations.length})</span></div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-2 rounded-sm" style={{ background: roomId ? myColor : '#00ff00' }}></div>
+                      <span className="text-white">Mine ({savedAnnotations.length})</span>
+                    </div>
+                    {roomId && remoteAnnotations.length > 0 && (
+                      <div className="flex items-center gap-2">
+                        <div className="w-3 h-2 bg-red-500 border border-red-600 rounded-sm"></div>
+                        <span className="text-white">Remote ({remoteAnnotations.length})</span>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -477,11 +724,11 @@ const OilSpillAnnotationPage = () => {
 
       <style>{`
         svg.a9s-annotationlayer .a9s-selection .a9s-outer,
-        svg.a9s-annotationlayer .a9s-annotation .a9s-outer { stroke: #00ff00; stroke-width: 2; fill: rgba(0, 255, 0, 0.1); }
+        svg.a9s-annotationlayer .a9s-annotation .a9s-outer { stroke: ${roomId ? myColor : '#00ff00'}; stroke-width: 2; fill: ${roomId ? `${myColor}1a` : 'rgba(0, 255, 0, 0.1)'}; }
         svg.a9s-annotationlayer .a9s-selection .a9s-inner,
-        svg.a9s-annotationlayer .a9s-annotation .a9s-inner { stroke: #00ff00; stroke-width: 2; stroke-dasharray: 5; fill: rgba(0, 255, 0, 0.15); }
-        svg.a9s-annotationlayer .a9s-annotation.editable:hover .a9s-inner { fill: rgba(0, 255, 0, 0.25); }
-        svg.a9s-annotationlayer .a9s-handle .a9s-handle-inner { fill: #00ff00; stroke: #00ff00; }
+        svg.a9s-annotationlayer .a9s-annotation .a9s-inner { stroke: ${roomId ? myColor : '#00ff00'}; stroke-width: 2; stroke-dasharray: 5; fill: ${roomId ? `${myColor}26` : 'rgba(0, 255, 0, 0.15)'}; }
+        svg.a9s-annotationlayer .a9s-annotation.editable:hover .a9s-inner { fill: ${roomId ? `${myColor}40` : 'rgba(0, 255, 0, 0.25)'}; }
+        svg.a9s-annotationlayer .a9s-handle .a9s-handle-inner { fill: ${roomId ? myColor : '#00ff00'}; stroke: ${roomId ? myColor : '#00ff00'}; }
         .saved-polygon-overlay { pointer-events: none !important; }
       `}</style>
     </div>
